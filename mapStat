@@ -1,0 +1,79 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+#### usage ####
+usage() {
+	echo Program: "mapStat.sh (determine number of reads, mapped and uniquely mapped reads from a SAM file)"
+	echo Author: RTH, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: sachin@rth.dk
+	echo "Usage: mapStat -q <file|dir> -f <file> -s <file>"
+	echo "Options:"
+	echo " -q <file>   [FASTQ (raw reads) file or directory (optional)]"
+	echo " -f <file>   [FASTA (clipped read) file]"
+	echo " -s <file>   [SAM (map) file]"
+	echo "[optional]"
+	echo " -c <int>    [mapping frequency (default: 1)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+MAPPING_FREQUENCY=1
+
+#### parse options ####
+while getopts q:f:s:c:h ARG; do
+	case "$ARG" in
+		q) FASTQFILE=$OPTARG;;
+		f) FASTAFILE=$OPTARG;;
+		s) SAMFILE=$OPTARG;;
+		c) MAPPING_FREQUENCY=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$FASTAFILE" -o ! -f "$SAMFILE" -o "$HELP" ]; then
+	usage
+fi
+
+## total number of reads left after quality filter (clipping of adapter sequences etc)
+TOTALFASTA=`grep "^>" $FASTAFILE | perl -an -F'/\|+/' -e 'if(defined($F[1])) { $sum+=$F[1]; } else { $sum++; } END { print "$sum\n"; }'`;
+
+## total number of reads that mapped
+MAPPED=`samtools view -S $SAMFILE | cut -f 1 | sort | uniq | perl -an -F'/\|+/' -e 'if(defined($F[1])) { $sum+=$F[1]; } else { $sum++; } END { print "$sum\n"; }'`;
+
+## total number of uniquely mapped reads
+if grep -qP "NH:i:[1-$MAPPING_FREQUENCY]{0,1}\s+" $SAMFILE; then
+	#UNIQ=`samtools view -S $SAMFILE | grep -w NH:i:1 | perl -an -F'/\|+/' -e 'if(defined($F[1])) { $sum+=$F[1]; } else { $sum++; } END { print "$sum\n"; }'`;
+	UNIQ=`samtools view -S $SAMFILE | grep -P "NH:i:[1-$MAPPING_FREQUENCY]{0,1}\s+" | cut -f 1 | sort | uniq | perl -an -F'/\|+/' -e 'if(defined($F[1])) { $sum+=$F[1]; } else { $sum++; } END { print "$sum\n"; }'`;
+else
+	#UNIQ=`samtools view -S $SAMFILE | cut -f 1 | sort | uniq -u | wc -l`;
+	UNIQ=`samtools view -S $SAMFILE | cut -f 1 | sort | uniq -c | sed 's/^\s*//g' | perl -ane 'if($F[0]>=1 && $F[0]<='$MAPPING_FREQUENCY') { ($id,$freq)=split(/\|/,$F[1]); $sum+=$freq; } END { print "$sum\n"; }'`;
+fi
+
+MAPPED_PERCENTAGE=`echo 'scale=2;'$MAPPED'*100/'$TOTALFASTA | bc`
+UNIQ_PERCENTAGE=`echo 'scale=2;'$UNIQ'*100/'$TOTALFASTA | bc`
+
+## total number of raw reads
+if [ ! -z "$FASTQFILE" -a -d "$FASTQFILE" ]; then
+	TOTALFASTQ=`zless $FASTQFILE/*fastq.gz | grep "^\@" -A 1 | grep -v "^\@" | grep -v - | wc -l`;
+	TOTALFASTA_PERCENTAGE=`echo 'scale=2;'$TOTALFASTA'*100/'$TOTALFASTQ | bc`
+	TOTALFASTQ=`echo $TOTALFASTQ | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+elif [ ! -z "$FASTQFILE" -a -f "$FASTQFILE" ]; then
+	TOTALFASTQ=`zless $FASTQFILE | grep "^\@" -A 1 | grep -v "^\@" | grep -v - | wc -l`;
+	TOTALFASTA_PERCENTAGE=`echo 'scale=2;'$TOTALFASTA'*100/'$TOTALFASTQ | bc`
+	TOTALFASTQ=`echo $TOTALFASTQ | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+else
+	TOTALFASTQ="NA"
+	TOTALFASTA_PERCENTAGE="NA"
+fi
+
+TOTALFASTA=`echo $TOTALFASTA | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+MAPPED=`echo $MAPPED | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+UNIQ=`echo $UNIQ | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+
+## print result
+echo -e "$SAMFILE\t$TOTALFASTQ\t$TOTALFASTA ($TOTALFASTA_PERCENTAGE)\t$MAPPED ($MAPPED_PERCENTAGE)\t$UNIQ ($UNIQ_PERCENTAGE)"
+
+exit

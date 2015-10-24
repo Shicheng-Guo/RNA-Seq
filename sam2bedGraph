@@ -1,0 +1,63 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+#### usage ####
+usage() {
+	echo Program: "sam2bedGraph (convert SAM into BedGraph format to visualize mapped reads in the UCSC browser)"
+	echo Author: RTH, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: sachin@rth.dk
+	echo "Usage: sam2bam -i <file> -g <file> [options]"
+	echo "Options:"
+	echo " -i <file>   [SAM (map) file]"
+	echo " -g <file>   [genome file]"
+	echo " -c <string> [make bedGraph for a specific chromosome]"
+	echo " -r <string> [color of the track defined as three comma-separated RGB values from 0-255 (default: 200,100,0)]"
+	echo " -b          [input file is in BAM format]"
+	echo " -h          [help]"
+	echo "Note:"
+	echo "If not present, the genome file can be downloaded using:"
+	echo "mysql --user=genome --host=genome-mysql.cse.ucsc.edu -A -e "select chrom, size from susScr3.chromInfo" > susScr3.genome"
+	echo
+	exit 0
+}
+
+COLOR="200,100,0"
+
+#### parse options ####
+while getopts i:g:c:r:bh ARG; do
+	case "$ARG" in
+		i) SAMFILE=$OPTARG;;
+		g) GENOMEFILE=$OPTARG;;
+		c) CHROMOSOME=$OPTARG;;
+		r) COLOR=$OPTARG;;
+		b) ISBAM=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$SAMFILE" -o ! -f "$GENOMEFILE" -o "$HELP" ]; then
+	usage
+fi
+
+ID=`echo $SAMFILE | sed -E 's/\.[sb]+am//g'`;
+
+## create header of bedGraph file
+echo "track type=bedGraph name=\"BedGraph Format $SAMFILE\" description=\"BedGraph format $SAMFILE\" visibility=full color=$COLOR altColor=0,100,200 priority=20" > $ID.bedGraph;
+
+if [ -z "$ISBAM" ]; then
+	if [ -z "$CHROMOSOME" ]; then
+		samtools view -bS $SAMFILE | bamToBed -i stdin | grep -v "Un_" | sort -k 1,1 | genomeCoverageBed -i stdin -bg -g $GENOMEFILE >> $ID.bedGraph;
+	else 
+		samtools view -bS $SAMFILE | bamToBed -i stdin | grep $CHROMOSOME | sort -k 1,1 | genomeCoverageBed -i stdin -bg -g $GENOMEFILE >> $ID.bedGraph;
+	fi
+else
+	if [ -z "$CHROMOSOME"]; then
+		bamToBed -i $SAMFILE | grep -v "Un_" | sort -k 1,1 | genomeCoverageBed -i stdin -bg -g $GENOMEFILE >> $ID.bedGraph;
+	else
+		bamToBed -i $SAMFILE | grep $CHROMOSOME | sort -k 1,1 | genomeCoverageBed -i stdin -bg -g $GENOMEFILE >> $ID.bedGraph;
+	fi
+fi
+
+exit

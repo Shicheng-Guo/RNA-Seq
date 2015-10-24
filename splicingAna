@@ -1,0 +1,104 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+GENOME="mm9"
+
+#### usage ####
+usage() {
+	echo Program: "splicingAna (perform nucleotide composition analysis on splicing sites)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: splicingAna -i <file> -o <dir> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [input BED file]"
+    echo " -o <dir>    [output directory]"
+    echo "[OPTIONS]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:o:g:h ARG; do
+	case "$ARG" in
+        i) INFILE=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$INFILE" -o -z "$OUTDIR" -o "$HELP" ]; then
+	usage
+fi
+
+## populating files based on input genome
+if [ "$GENOME" == "mm9" ]; then
+    GENOME_FILE="/home/pundhir/project/genome_annotations/mouse.mm9.genome"
+    GENOME_FASTA="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr/Bowtie2IndexWithAbundance.fa"
+elif [ "$GENOME" == "hg19" ]; then
+    GENOME_FILE="/home/pundhir/project/genome_annotations/human.hg19.genome"
+    GENOME_FASTA="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr/genome_and_Abundant.fa"
+else
+    echo "Presently the program only support analysis for mm9 or hg19"
+    echo
+    usage
+fi
+
+## create output directory, if it does not exist
+if [ ! -d "$OUTDIR" ]; then
+    mkdir $OUTDIR
+fi
+
+## create temporary file if input is from stdin
+if [ "$INFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo ${LINE}
+    done | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' > $TMP
+    INFILE=$TMP
+fi
+
+## retrieve name of input file
+NAME=$(echo $INFILE | perl -ane '$_=~s/^.*\///g; print $_;')
+
+## partion BED file based on splicing event and its orientation
+## retrieve nucleotide sequence corresponding to splicing coordinates
+## plot seqlogo for each splicing type
+if grep -q A5 $INFILE; then
+    grep -w A5 $INFILE > $OUTDIR/A5.bed
+    bedtools getfasta -fi $GENOME_FASTA -bed $OUTDIR/A5.bed -fo $OUTDIR/A5.bed.fasta -s 
+    fasta2seqlogo.R -i $OUTDIR/A5.bed.fasta
+fi
+
+if grep -q A3 $INFILE; then
+    grep -w A3 $INFILE > $OUTDIR/A3.bed
+    bedtools getfasta -fi $GENOME_FASTA -bed $OUTDIR/A3.bed -fo $OUTDIR/A3.bed.fasta -s
+    fasta2seqlogo.R -i $OUTDIR/A3.bed.fasta
+fi
+
+if grep -q 5p $INFILE; then
+    grep 5p $INFILE > $OUTDIR/5p.bed
+    bedtools getfasta -fi $GENOME_FASTA -bed $OUTDIR/5p.bed -fo $OUTDIR/5p.bed.fasta -s
+    fasta2seqlogo.R -i $OUTDIR/5p.bed.fasta
+fi
+
+if grep -q 3p $INFILE; then
+    grep 3p $INFILE > $OUTDIR/3p.bed
+    bedtools getfasta -fi $GENOME_FASTA -bed $OUTDIR/3p.bed -fo $OUTDIR/3p.bed.fasta -s
+    fasta2seqlogo.R -i $OUTDIR/3p.bed.fasta
+fi
+
+if grep -q mid $INFILE; then
+    grep mid $INFILE > $OUTDIR/mid.bed
+    bedtools getfasta -fi $GENOME_FASTA -bed $OUTDIR/mid.bed -fo $OUTDIR/mid.bed.fasta -s
+    fasta2seqlogo.R -i $OUTDIR/mid.bed.fasta
+fi
+
+## remove temporary file
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi

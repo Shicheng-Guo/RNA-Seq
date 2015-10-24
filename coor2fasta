@@ -1,0 +1,70 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+GENOME="mm9"
+BASED="1"
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "coor2fasta (retrieve nucleotide sequences corresponding to genomic coordinate(s))"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: coor2fasta -i <file> -j <coor> [OPTIONS]"
+	echo "Options:"
+    echo " -i <file>   [reference genome sequence as fasta file]"
+    echo " -j <coor>   [genomic coordinate as chr:start-end]"
+    echo "[OPTIONS]"
+    echo " -k <int>    [the coordinate is 0-based or 1-based (default: 1)]"
+    echo "             [0: BED and BAM]"
+    echo "             [1: GFF, GTF, SAM and VCF]"
+    echo "             [for details refer to https://www.biostars.org/p/84686/]"
+    echo " -s <string> [genomic strand for the input coordinate (+ or -)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:s:h ARG; do
+	case "$ARG" in
+        i) FASTAFILE=$OPTARG;;
+        j) COOR=$OPTARG;;
+        k) BASED=$OPTARG;;
+        s) STRAND=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$FASTAFILE" -o -z "$COOR" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## retrieve nucleotide sequence
+if [ "$BASED" -eq 0 ]; then
+    if [ ! -z "$STRAND" ]; then
+        echo $COOR | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t'$STRAND'\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+    else
+        echo $COOR | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
+    fi
+else
+    if [ ! -z "$STRAND" ]; then
+        echo $COOR | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); $t[1]=$t[1]-1; print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t'$STRAND'\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+    else
+        echo $COOR | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); $t[1]=$t[1]-1; print "$t[0]\t$t[1]\t$t[2]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
+    fi
+fi

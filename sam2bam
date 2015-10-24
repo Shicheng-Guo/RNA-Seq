@@ -1,0 +1,68 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+#### usage ####
+usage() {
+	echo Program: "sam2bam (convert SAM to BAM format)"
+	echo Author: RTH, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: sachin@rth.dk
+	echo "Usage: sam2bam -i <file> -m <mode>"
+	echo "Options:"
+	echo " -i <file>   [SAM (map) file]"
+	echo " -m <int>    [mode to run]"
+	echo "             [1: convert all reads in sam to bam (default)]"
+	echo "             [2: convert all reads in sam to bam while also uncollapsing identical reads]" 
+	echo "             [3: convert only reads having mapping frequency equal to '-c' in sam to bam]"
+	echo "             [4: convert only reads having mapping frequency equal to '-c' in sam to bam while also uncollapsing identical reads]"
+	echo " -c <int>    [mapping frequency (default:1)]"
+	echo " -x          [just filter the reads, do not convert to bam]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+MODE=1
+MAPPING_FREQUENCY=1
+
+#### parse options ####
+while getopts i:m:c:xh ARG; do
+	case "$ARG" in
+		i) SAMFILE=$OPTARG;;
+		m) MODE=$OPTARG;;
+		c) MAPPING_FREQUENCY=$OPTARG;;
+		x) NOBAM=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$SAMFILE" -o "$HELP" ]; then
+	usage
+fi
+
+ID=`echo $SAMFILE | sed 's/\.sam//g'`;
+
+if [ "$MODE" -eq 1 -a -z "$NOBAM" ]; then
+	samtools view -bS $SAMFILE > $ID.bam
+elif [ "$MODE" -eq 2 ]; then
+	if [ -z "$NOBAM" ]; then
+		perl -ane 'if($_=~/^\@/) { print $_; } else { ($id,$expr)=split(/\|/,$F[0]); for($i=1;$i<=$expr;$i++) { $newid=$id."_$i"; $line=$_; $line=~s/\Q$F[0]\E/$newid/g; print "$line"; } }' $SAMFILE | samtools view -bS - > $ID.uncollapsed.bam
+	else
+		perl -ane 'if($_=~/^\@/) { print $_; } else { ($id,$expr)=split(/\|/,$F[0]); for($i=1;$i<=$expr;$i++) { $newid=$id."_$i"; $line=$_; $line=~s/\Q$F[0]\E/$newid/g; print "$line"; } }' $SAMFILE > $ID.uncollapsed.sam
+	fi
+elif [ "$MODE" -eq 3 ]; then
+	if [ -z "$NOBAM" ]; then
+		grep -P "^\@|NH:i:[1-$MAPPING_FREQUENCY]{0,1}\s+" $SAMFILE | samtools view -bS - > $ID.uniq$MAPPING_FREQUENCY.bam
+	else
+		grep -P "^\@|NH:i:[1-$MAPPING_FREQUENCY]{0,1}\s+" $SAMFILE > $ID.uniq$MAPPING_FREQUENCY.sam
+	fi
+elif [ "$MODE" -eq 4 ]; then
+	if [ -z "$NOBAM" ]; then
+		grep -P "^\@|NH:i:[1-$MAPPING_FREQUENCY]{0,1}\s+" $SAMFILE | perl -ane 'if($_=~/^\@/) { print $_; } else { ($id,$expr)=split(/\|/,$F[0]); for($i=1;$i<=$expr;$i++) { $newid=$id."_$i"; $line=$_; $line=~s/\Q$F[0]\E/$newid/g; print "$line"; } }' | samtools view -bS - > $ID.uniq$MAPPING_FREQUENCY.uncollapsed.bam
+	else
+		grep -P "^\@|NH:i:[1-$MAPPING_FREQUENCY]{0,1}\s+" $SAMFILE | perl -ane 'if($_=~/^\@/) { print $_; } else { ($id,$expr)=split(/\|/,$F[0]); for($i=1;$i<=$expr;$i++) { $newid=$id."_$i"; $line=$_; $line=~s/\Q$F[0]\E/$newid/g; print "$line"; } }' > $ID.uniq$MAPPING_FREQUENCY.uncollapsed.sam
+	fi
+fi
+
+exit

@@ -1,0 +1,54 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+#### usage ####
+usage() {
+	echo Program: "qualStat.sh (determine total reads, reads having only adapter sequence etc)"
+	echo Author: RTH, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: sachin@rth.dk
+	echo "Usage: mapStat -f <file> -s <file>"
+	echo "Options:"
+	echo " -f <file>   [FASTQ file]"
+	echo " -p          [print overrepresented sequences]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts f:ph ARG; do
+	case "$ARG" in
+		f) FASTQFILE=$OPTARG;;
+		p) PRINT=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$FASTQFILE" -o "$HELP" ]; then
+	usage
+fi
+
+FASTQCDIR=`echo $FASTQFILE | sed 's/.fastq.gz/_fastqc/g'`;
+if [ ! -z "$PRINT" ]; then
+	more $FASTQCDIR/fastqc_data.txt | perl -ane 'if($_=~/\>\>Overrepresented/) { $start=1; } elsif($_=~/END_MODULE/) { $start=0; } elsif($start) { print $_; }' | grep -v sequence | grep -v \# | cut -f 1 | sort | uniq;
+	exit;
+fi
+
+TOTALREADS=`zless $FASTQFILE | grep "^\@" -A 1 | grep -v "^\@" | grep -v - | wc -l`;
+if [ -e "$FASTQCDIR" ]; then
+	ADAPTERCOUNT=`more $FASTQCDIR/fastqc_data.txt | perl -ane 'if($_=~/\>\>Overrepresented/) { $start=1; } elsif($_=~/END_MODULE/) { $start=0; } elsif($start) { print $_; }' | grep -v sequence | grep -v \# | perl -ane '$sum+=$F[1]; END { print "$sum\n"; }'`;
+	ADAPTERCOUNT_PERCENTAGE=`echo 'scale=2;'$ADAPTERCOUNT'*100/'$TOTALREADS | bc`
+	ADAPTERCOUNT=`echo $ADAPTERCOUNT | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+else
+	ADAPTERCOUNT="NA"
+	ADAPTERCOUNT_PERCENTAGE="NA"
+fi
+
+TOTALREADS=`echo $TOTALREADS | perl -ane '$_=~s/(\d)(?=(\d{3})+(\D|$))/$1\,/g; print $_;'`;
+
+## print result
+echo -e "$FASTQFILE\t$TOTALREADS\t$ADAPTERCOUNT ($ADAPTERCOUNT_PERCENTAGE)"
+
+exit

@@ -1,0 +1,1 @@
+sachin@KU-E5510:~/software/myScripts/test$ blockbuster.x -format 1 -distance 40 -minClusterHeight 10 -minBlockHeight 10 -scale 0.5 -print 2 -blockHeight rel GSM497068_L1236.bed > GSM497068_L1236.bed.bgs

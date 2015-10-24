@@ -1,0 +1,156 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+## DEPENDENCIES
+OUTDIR="."
+PROCESSOR=1
+FDR=0.01
+MASKED_GENES="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/masked_with_abundance.gtf"
+REFERENCE_GENOME="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/genome.fa"
+KNOWN_ANNOTATION="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/genes_without_mt.gtf"
+CHROMOSOME="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Chromosomes/"
+ASSEMBLY="ensembl"
+LIBRARY_TYPE="fr-unstranded"
+NORMALIZATION_METHOD="geometric"
+DISPERSION_METHOD="pooled"
+
+#### usage ####
+usage() {
+	echo Program: "cuffAnalysis (cufflinks -> cuffmerge -> cuffcompare -> cuffquant -> cuffdiff -> CummeRbund -> spliceR)"
+	echo Author: RTH, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: sachin@rth.dk
+	echo "Usage: cuffAnalysis -i <file> -l <string> [OPTIONS]"
+	echo " -i <file>   [input BAM files (if multiple, seperate them by comma)]"
+    echo " -l <string> [label corresponding to each BAM file (eg. WT,KO)]"
+	echo "Options:"
+    echo " -o <dir>    [output directory (default: current)]"
+    echo " -f <float>  [false discovery rate for cuffdiff (default:0.01)]"
+    echo " -p <int>    [number of processors (default: 1)]"
+    echo " -m <file>   [masked genes in GTF format (default: /home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/masked_with_abundance.gtf)]"
+    echo " -r <file>   [reference genome in FASTA format (default: /home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/genome.fa)]"
+    echo " -a <file>   [known annotation in GTF format (default: /home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/genes_without_mt.gtf)]"
+    echo " -k          [remove all novel intergenic genes before doing the differential expression]"
+    echo " -y          [library type (default: fr-unstranded)]"
+    echo "             [a) fr-unstranded, b) fr-firststrand, c) fr-secondstrand]"
+    echo " -n          [cuffdiff normalization method (default: geometric)"
+    echo "             [a) classic-fpkm, b) geometric (identical to DESeq), c) quartile]"
+    echo " -d          [cross-replicate dispersion estimate method (default: pooled)"
+    echo "             [a) pooled, b) per-condition, c) blind, d) poisson]"
+    echo "             [note: in case of a single replicate, you must use 'blind']"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:l:o:f:p:m:r:a:ky:n:d:h ARG; do
+	case "$ARG" in
+		i) BAM_INPUT=$OPTARG;;
+        l) LABEL=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        f) FDR=$OPTARG;;
+        p) PROCESSOR=$OPTARG;;
+        m) MASKED_GENES=$OPTARG;;
+        r) REFERENCE_GENOME=$OPTARG;;
+        a) KNOWN_ANNOTATION=$OPTARG;;
+        k) ONLY_KNOWN=1;;
+        y) LIBRARY_TYPE=$OPTARG;;
+        n) NORMALIZATION_METHOD=$OPTARG;;
+        d) DISPERSION_METHOD=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! "$BAM_INPUT" -o "$HELP" ]; then
+	usage
+fi
+
+## create appropriate directory structure
+echo
+echo -n "Create appropriate directory structure.. "
+if [ ! -d "$OUTDIR/03_cufflinks" ]; then
+    mkdir $OUTDIR/03_cufflinks
+    mkdir $OUTDIR/04_cuffmerge
+    mkdir $OUTDIR/045_cuffcompare
+    mkdir $OUTDIR/05_cuffdiff
+    mkdir $OUTDIR/06_cuffquant
+    mkdir $OUTDIR/07_cuffnorm
+    mkdir $OUTDIR/output
+    mkdir $OUTDIR/output/1_sequence_and_mapping_quality
+    mkdir $OUTDIR/output/15_for_genome_browser
+    mkdir $OUTDIR/output/2_model_control
+    mkdir $OUTDIR/output/3_expression_list
+    mkdir $OUTDIR/output/4_sample_comparison
+    mkdir $OUTDIR/output/5_spliceR_analysis
+fi
+echo -e "done\n"
+
+## retrieve file name
+IFS=","
+BAM_FILES=($BAM_INPUT)
+BAM_COUNT=${#BAM_FILES[@]}
+IFS=" "
+
+## check, if name of all input files is same
+UNIQUE_NAMES=`echo "${BAM_FILES[@]}" | tr ' ' '\n' | sed 's/^.*\///g' | sed 's/\..*//g' | sort -u | wc -l`
+
+CUFFCOMPARE_GTF_INPUT=""
+CUFFDIFF_BAM_INPUT=""
+## start analysis
+for ((i=0; i<$BAM_COUNT; i++)); do
+
+    ## determine unique id corresponding to each input BAM file
+    if [ "$UNIQUE_NAMES" -gt 1 ]; then
+        BAM_ID=`echo ${BAM_FILES[$i]} | sed 's/^.*\///g' | sed 's/\..*//g'`
+    else
+        BAM_ID=`echo ${BAM_FILES[$i]} | sed 's/\/[^\/]*$//g' | sed 's/^.*\///g' | sed 's/\..*//g'`
+    fi
+
+    ## run cuflinks
+    echo -n "Running cufflinks on ${BAM_FILES[$i]}.. "
+    cufflinks -p $PROCESSOR -M $MASKED_GENES -b $REFERENCE_GENOME -u -N --max-bundle-length 5000000 --library-type=$LIBRARY_TYPE -g $KNOWN_ANNOTATION -o $OUTDIR/03_cufflinks/$BAM_ID"_cufflinks_out" ${BAM_FILES[$i]} 
+    echo -e "done\n"
+
+    ## create assemblies.txt (to tell cuffmerge, the path of all individual cufflinks transcriptomes)
+    echo "$OUTDIR/03_cufflinks/$BAM_ID"_cufflinks_out"/transcripts.gtf" >> $OUTDIR/03_cufflinks/assemblies.txt
+
+    ## create one liner for transcripts.gtf and BAM files (required as a input to cuffcompare and cuffdiff, respectively)
+    CUFFCOMPARE_GTF_INPUT="$CUFFCOMPARE_GTF_INPUT $OUTDIR/03_cufflinks/$BAM_ID""_cufflinks_out/transcripts.gtf"
+    CUFFDIFF_BAM_INPUT="$CUFFDIFF_BAM_INPUT ${BAM_FILES[$i]}"
+
+    ## run cuffquant
+    echo -n "Running cuffquant on ${BAM_FILES[$i]}.. "
+    cuffquant -p $PROCESSOR -M $MASKED_GENES -b $REFERENCE_GENOME -u --library-type=$LIBRARY_TYPE -o $OUTDIR/06_cuffquant/$BAM_ID"_cuffquant_out" $KNOWN_ANNOTATION ${BAM_FILES[$i]}
+    echo -e "done\n"
+
+done
+
+## run cuffmerge
+echo -n "Running cuffmerge.. "
+cuffmerge -g $KNOWN_ANNOTATION -s $CHROMOSOME -p $PROCESSOR -o $OUTDIR/04_cuffmerge $OUTDIR/03_cufflinks/assemblies.txt
+echo -e "done\n"
+
+## create file for genome browser, if the assembly is in Ensembl
+echo -n "Creating transcript file for genome browser.. "
+grep '^[1-9XY]' $OUTDIR/04_cuffmerge/merged.gtf | awk '{print "chr"$0}' > $OUTDIR/output/15_for_genome_browser/merged_transcripts.gtf
+echo -e "done\n"
+
+## run cuffcompare
+echo -n "Running cuffcompare.. "
+cuffcompare -r $KNOWN_ANNOTATION -s $CHROMOSOME -o $OUTDIR/045_cuffcompare/cuffcmp $CUFFCOMPARE_GTF_INPUT
+echo -e "done\n"
+
+## run cuffdiff
+echo -n "Running cuffdiff.. "
+WHICH_MERGED_TO_USE="$OUTDIR/04_cuffmerge/merged.gtf"
+if [ ! -z "$ONLY_KNOWN" ]; then
+    grep 'gene_name' $OUTDIR/04_cuffmerge/merged.gtf > $OUTDIR/04_cuffmerge/merged_known.gtf
+    WHICH_MERGED_TO_USE="$OUTDIR/04_cuffmerge/merged_known.gtf"
+fi
+
+cuffdiff -p $PROCESSOR --FDR $FDR --library-type=$LIBRARY_TYPE -M $MASKED_GENES --min-reps-for-js-test 2 -b $REFERENCE_GENOME -u -o $OUTDIR/05_cuffdiff $WHICH_MERGED_TO_USE --library-norm-method=$NORMALIZATION_METHOD --dispersion-method=$DISPERSION_METHOD -L $LABEL $CUFFDIFF_BAM_INPUT
+echo -e "done\n"
+
+exit

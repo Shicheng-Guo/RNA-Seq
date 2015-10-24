@@ -1,0 +1,185 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+GENOME="mm9"
+WIN=50
+
+#### usage ####
+usage() {
+	echo Program: "splicing2win (determine flanking window to splicing sites)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: splicing2win -i <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [splicing results from spliceR (can be stdin)]"
+    echo "[OPTIONS]"
+    echo " -b          [input file is in BED format (default: spliceR)]"
+    echo " -w <int>    [widow size flanking each end of a splicing event (default: 50)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:bw:g:h ARG; do
+	case "$ARG" in
+        i) INFILE=$OPTARG;;
+        b) BED=1;;
+        w) WIN=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$INFILE" -o "$HELP" ]; then
+	usage
+fi
+
+## create temporary file if input is from stdin
+if [ "$INFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo ${LINE}
+    done | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' > $TMP
+    INFILE=$TMP
+fi
+
+## retrieve name of input file
+NAME=$(echo $INFILE | perl -ane '$_=~s/^.*\///g; print $_;')
+
+## create BED file containing exact position of splicing based on their type and strand orientation
+if [ -z "$BED" ]; then
+    grep -v spliceR $INFILE | perl -ane '
+    @NAME=("ESI", "MEE", "MESI", "ISI", "A5", "A3");
+    $k=0;
+    for($i=27; $i<=38; $i+=2) {
+        @start=split(/[\;\,]+/,$F[$i]);
+        @end=split(/[\;\,]+/,$F[$i+1]);
+        for($j=0; $j<scalar(@start); $j++) {
+            print "$F[3]\t$start[$j]\t$end[$j]\t$NAME[$k]\t$F[14]\t$F[39]\t$F[0]\n";
+        }
+        $k++;
+    }' | grep -wv NA 
+else
+    cat $INFILE 
+fi | perl -ane '
+    $WIN='$WIN';
+    if($F[5]=~/\-/) {
+        if($F[3]=~/ESI/ || $F[3]=~/exon/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
+            $start=$mid-$WIN;
+            $end=$mid+$WIN;
+            print "$F[0]\t$start\t$end\tESI_mid\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/MEE/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tMEE_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tMEE_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
+            $start=$mid-$WIN;
+            $end=$mid+$WIN;
+            print "$F[0]\t$start\t$end\tMEE_mid\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/MESI/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tMESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tMESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
+            $start=$mid-$WIN;
+            $end=$mid+$WIN;
+            print "$F[0]\t$start\t$end\tMESI_mid\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/ISI/ || $F[3]=~/intron/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tISI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tISI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/A5/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tA5\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/A3/) {
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tA3\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+    }
+    else {
+        if($F[3]=~/ESI/ || $F[3]=~/exon/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
+            $start=$mid-$WIN;
+            $end=$mid+$WIN;
+            print "$F[0]\t$start\t$end\tESI_mid\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/MEE/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tMEE_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tMEE_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
+            $start=$mid-$WIN;
+            $end=$mid+$WIN;
+            print "$F[0]\t$start\t$end\tMEE_mid\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/MESI/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tMESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tMESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
+            $start=$mid-$WIN;
+            $end=$mid+$WIN;
+            print "$F[0]\t$start\t$end\tMESI_mid\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/ISI/ || $F[3]=~/intron/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tISI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tISI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/A5/) {
+            $start=$F[1]-$WIN;
+            $end=$F[1]+$WIN;
+            print "$F[0]\t$start\t$end\tA5\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+        elsif($F[3]=~/A3/) {
+            $start=$F[2]-$WIN;
+            $end=$F[2]+$WIN;
+            print "$F[0]\t$start\t$end\tA3\t$F[4]\t$F[5]\t$F[6]\n";
+        }
+    }'
+
+## remove temporary file
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi

@@ -1,0 +1,472 @@
+
+/*
+ *  kdmatch.c
+ *  routines 4 relaxed alignments
+ *
+ *  @author Steve Hoffmann
+ *  @email steve@bioinf.uni-leipzig.de
+ *  @date 11/27/2007 04:08:39 PM CET
+ *
+ *  SVN
+ *  Revision of last commit: $Rev: 103 $
+ *  Author: $Author: steve $
+ *  Date: $Date: 2008-12-10 15:18:18 +0100 (Wed, 10 Dec 2008) $
+ *
+ *  Id: $Id: kdmatch.c 103 2008-12-10 14:18:18Z steve $
+ *  Url: $URL: http://www.bioinf.uni-leipzig.de/svn/segemehl/segemehl/branches/esa/trunk/src/kdmatch.c $
+ *  
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+#include <math.h>
+#include <assert.h>
+#include "memory.h"
+#include "fileio.h"
+#include "stringutils.h"
+#include "charsequence.h"
+#include "multicharseq.h"
+#include "sufarray.h"
+#include "mmchar.h"
+#include "mathematics.h"
+#include "manout.h"
+#include "biofiles.h"
+#include "vtprogressbar.h"
+#include "karlin.h"
+#include "sort.h"
+#include "basic-types.h"
+#include "bitvectoralg.h"
+#include "bitVector.h"
+#include "kdmatch.h"
+#include "bitArray.h"
+#include "segemehl.h"
+#include "container.h"
+#include "kdchain.h"
+#include "debug.h"
+#include "info.h"
+#include "kdseed.h"
+#include "alignment.h"
+#include <pthread.h>
+
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
+
+gmatch_t*
+alignkdmatches(void *space,
+    Suffixarray *s, 
+    matchstem_t *M, 
+    CharSequence *query,
+    char *curseq,
+    Uint m,
+    Uint t,
+    Uint *enctab,
+    unsigned char bestonly,
+    Uint bedist,
+    double lambda,
+    double H,
+    double K,
+    double maxevalue,
+    int acc,
+    bitvector* D,
+    Uint dim,
+    Uint* nmatch,
+    int* bscr) {
+
+  Uint k,j,l,r,q,noofmatches=0, mat, mis, ins, del; 
+  Lint pos, margin, schr, echr, sstart, slen, i ;
+  char *sseq;
+  unsigned int idx;
+  Alignment *al=NULL;
+  bitvector *peq;
+  PairSint result;
+#ifdef ALIGNDBG
+  PairSint result2;
+  CharSequence *checkseq;
+#endif
+  double E;
+  int scr;
+  int maxedist = 0;
+  int bestscr = 0;
+
+  gmatch_t *matches=NULL;
+
+  margin = bestscr = maxedist = m-ceil((acc*m)/100);
+  peq = getpeq(NULL, curseq, m, s->seq->map, s->seq->mapsize, enctab);
+
+  for(i=0; i < m; i++) {
+    for(q=0; q < M[i].noofbranches; q++) {
+      l = M[i].branches[q].l; r = M[i].branches[q].r;
+      scr =  M[i].branches[q].mat - (M[i].branches[q].mis+M[i].branches[q].ins+M[i].branches[q].del); 
+      E = evalue(lambda, K, spacemult(m, s->numofsuffixes, H, K), scr); 
+
+      if(l <= r && E <= maxevalue && (r-l) <= t) {
+        for(j=l; j <= r; j++) {
+          pos = s->suftab[j];
+
+          /*skip marginal matches*/
+          for(k=0; k < noofmatches; k++) 
+            if (abs((signed int)matches[k].p-(pos-(i+margin))) <= margin) break;
+
+          if (k == noofmatches) {
+
+            idx = getMultiCharSeqIndex(s->seq, &s->seq->sequences[pos]);
+            schr = (idx > 0) ? s->seq->markpos[idx-1]+1 : 0;
+            echr = s->seq->markpos[idx];
+            assert(echr >=  pos);
+            sstart = MAX(schr, pos-(i+margin));
+            slen = (echr > sstart+m+2*(margin+1)) ? m+2*(margin+1) : (echr-sstart)+1;  
+            sseq = &s->seq->sequences[sstart];
+/*            
+            if(echr == pos) {
+              fprintf(stderr, "\n\n sstart:%lld, slen:%lld, ssend:%lld, echr:%lld\n\n",
+                  sstart, slen, sstart+slen-1, echr);
+            }
+*/
+            myersbitmatrix(NULL, curseq, m, sseq, slen, s->seq->map, 
+                s->seq->mapsize, enctab, m-bestscr, peq, &result, D, slen);
+
+#ifdef ALIGNDBG
+            result2 = myersbitvector(NULL, curseq, m, sseq, slen, 
+                s->seq->map, s->seq->mapsize, enctab, m-bestscr, peq);
+            assert(result.a == result2.a && result.b == result2.b);
+#endif
+
+            if (result.a != -1 && result.b <= maxedist 
+                && result.b <= bestscr && result.a < slen) {  
+              al = ALLOCMEMORY(space, NULL, Alignment, 1);
+              initAlignment(al, curseq, m, 0, sseq, slen, 0);
+              bitvectorbacktrack(al, D, slen, m, result.a);
+#ifdef ALIGNDBG
+              assert(getEdist(al) == result.b);
+              checkseq = (CharSequence*) s->seq->ref[idx].ref;
+              assert(strncmp(& checkseq->sequence[pos-schr],
+                    &s->seq->sequences[pos], slen) == 0);
+#endif
+              countEops(al, &mat, &mis, &del, &ins);
+
+              /*skip identical matches*/
+              for(k=0; k < noofmatches; k++) {
+                if (matches[k].p == sstart+al->voff) break;
+              }
+
+              if (k == noofmatches) {
+                matches=realloc(matches, sizeof(gmatch_t)*(noofmatches+1));
+                matches[noofmatches].p = sstart+al->voff;
+                matches[noofmatches].q = sstart+result.a-1;
+                matches[noofmatches].edist = result.b;
+                matches[noofmatches].i = i; 
+                matches[noofmatches].j = i+M[i].branches[q].mat+
+                  M[i].branches[q].mis+M[i].branches[q].ins-1;
+                matches[noofmatches].scr = scr;
+                matches[noofmatches].evalue = E;
+                matches[noofmatches].mat = mat;
+                matches[noofmatches].mis = mis;
+                matches[noofmatches].ins = ins;
+                matches[noofmatches].del = del;
+                matches[noofmatches].subject = idx;
+                matches[noofmatches].checklen = matches[noofmatches].j; 
+                matches[noofmatches].al = al;
+                noofmatches++;
+                if(bestonly) {
+                  bestscr = MIN(maxedist, (result.b+bedist));
+                } 
+              } else {
+                wrapAlignment(al);
+                FREEMEMORY(space, al);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+  for(i=0; i < s->seq->mapsize; i++) {
+    FREEMEMORY(space, peq[i]);
+  }
+
+  FREEMEMORY(space, peq);      
+  (*bscr)  = bestscr;
+  (*nmatch) = noofmatches;
+
+  return matches;
+}
+
+
+void
+matchkdseed( void *space, 
+            Suffixarray *s, 
+            fasta_t *reads, 
+            Uint minsize,
+            char *outfile,
+            Uint *counter,
+            unsigned char silent,
+            Uint s_ext,
+            Uint p_mis,
+            Uint Xoff,
+            Uint k_p,
+            Uint rep_type,
+            Uint hitstrategy,
+            Uint bedist,
+            unsigned char showalignment,
+            double maxevalue,
+            int acc,      
+            Uint M,
+            unsigned char matchingstat,
+            FILE *dev,
+            FILE *nomatchdev) {
+
+  double   H,
+           K,
+           lambda;
+  char     *buffer, 
+           *curseq;
+  Uint     k,
+           curlen,
+           dim,
+           wordno;
+  bitvector *D,
+            *Mv;
+  Gmap      map;
+  gread_t   read;
+  gmatch_t  *mmatches=NULL,
+            *pmatches=NULL;
+  matchstem_t *V;
+
+  int plusdiff, minusdiff, noofmatches=0;
+
+
+  
+  pthread_mutex_t *mtx=NULL;
+  pthread_mutex_t *mtx2=NULL;
+  Uint *enctab, i,j, nmmatch, npmatch;
+
+  int bmscr, bpscr;
+  unsigned char uninformative = 0,
+                beststrand = 0,
+                best = 0;
+    
+  if (hitstrategy == 2) { 
+    beststrand = 1;
+    best = 1;
+  } else if (hitstrategy == 1) {
+    beststrand = 1;
+  }
+
+
+  /*build alignment matrix*/
+  enctab = encodetab(s->seq->map, s->seq->mapsize);
+  dim = reads->maxlen + 2*((reads->maxlen-ceil((acc*reads->maxlen)/100))+4);
+  wordno = reads->maxlen/BITVECTOR_WORDSIZE;
+//  wordno += ((reads->maxlen & (BITVECTOR_WORDSIZE-1)) > 0) ? 1 : 0;
+  wordno++;
+
+  D = ALLOCMEMORY(space, NULL, bitvector, 2*(dim+1));
+  Mv = &D[dim+1];
+
+  for(i=0; i <= dim; i++) {
+    D[i]  = initbitvector(space, wordno*BITVECTOR_WORDSIZE);
+    Mv[i]  = initbitvector(space, wordno*BITVECTOR_WORDSIZE);
+  }  
+
+  if (counter == NULL) {
+    initProgressBarVT();
+  } else {
+    mtx = &mutex1;
+    mtx2 = &mutex2;
+  }
+
+  karlinunitcostpp(space, &lambda, &H, &K);
+  
+  for (k=0; k < reads->noofseqs; k++) {
+    plusdiff = 0;
+    minusdiff = 0;
+    noofmatches = 0;
+
+    if (!silent) {
+      if (counter == NULL) {
+        progressBarVT("reads matched.", reads->noofseqs, k, 25);
+      } else {
+        (*counter)++;
+      }
+    }
+
+    curseq = reads->seqs[k]->sequence;
+    curlen = reads->seqs[k]->length; 
+    npmatch = 0;
+    nmmatch = 0;
+
+    if(curlen >= minsize) {  
+      initGmap(&map, s->seq, 1);
+      initRead(&read, reads->seqs[k]);
+      bpscr = 0;
+      bmscr = 0;
+      
+      V=kdseeds(space, s, curseq, curlen, s_ext, p_mis, Xoff, k_p);
+#ifdef KDUNINFORMATIVE
+      if(V[0].branches[0].r > V[0].branches[0].l && V[0].branches[0].r-V[0].branches[0].l > M) {
+        uninformative = 1;
+        plusdiff = V[0].branches[0].r - V[0].branches[0].l;
+      } else 
+#endif
+      if(!matchingstat) {
+        uninformative = 0;
+        pmatches = alignkdmatches(space, s, V, reads->seqs[k], curseq, curlen, M, enctab, beststrand, 
+            bedist, lambda, H, K, maxevalue, acc, D, dim, &npmatch, &bpscr);
+ 
+        if(npmatch > 0) {
+            setMatches(&read, pmatches, npmatch, PLUSSTRAND);
+        }
+
+      } else {
+        printf("#%d %s\n",curlen, reads->seqs[k]->description);
+        dumpkdseeds(s, V, curlen, '+', M);
+      }
+
+      for(j=0; j < curlen; j++) {
+        if (V[j].noofbranches > 0) {
+            FREEMEMORY(space, V[j].branches);
+        }
+      }
+      FREEMEMORY(space, V);
+
+      /*search the complement*/
+      buffer = charDNAcomplement(space, curseq, curlen);
+      V=kdseeds(space, s, buffer, curlen, s_ext, p_mis, Xoff, k_p);
+#ifdef KDUNINFORMATIVE
+      if(uninformative && V[0].branches[0].r > V[0].branches[0].l && V[0].branches[0].r-V[0].branches[0].l > M) {
+        minusdiff = V[0].branches[0].r - V[0].branches[0].l;
+        uninformative = 1;
+      } else
+#endif
+      if(!matchingstat) {
+        uninformative = 0;
+        mmatches = alignkdmatches(space, s, V, reads->seqs[k], buffer, curlen, M, enctab, beststrand, 
+            bedist, lambda, H, K, maxevalue, acc, D, dim, &nmmatch, &bmscr);
+
+        if(nmmatch > 0) {  
+          setMatches(&read, mmatches, nmmatch, MINUSSTRAND);
+        }
+
+        if (best) {
+          bpscr = MIN(bmscr, bpscr);
+          bmscr = bpscr;
+        } else if (!beststrand) {
+          bpscr = bmscr = curlen-ceil((acc*curlen)/100);
+        }
+
+        setReads(&map, &read, 1);
+        reportMatch(dev, &map, rep_type, showalignment, mtx, bpscr, bmscr);
+       
+        FREEMEMORY(space, pmatches);
+        FREEMEMORY(space, mmatches);
+        pmatches = NULL;
+        mmatches = NULL;
+
+      } else {
+        dumpkdseeds(s, V, curlen, '-', M); 
+      }
+
+      for(j=0; j < curlen; j++) {
+        if (V[j].noofbranches > 0) {
+          FREEMEMORY(space, V[j].branches);
+        }
+      }
+      FREEMEMORY(space, V);
+      FREEMEMORY(space, buffer);  
+    }
+      
+    if(nomatchdev && nmmatch == 0 && npmatch == 0) {   
+        if (mtx2 != NULL) pthread_mutex_lock(mtx2);
+        fprintf(nomatchdev, "%s\n%s\n", reads->seqs[k]->description, reads->seqs[k]->sequence);
+        fflush(nomatchdev);
+        if (mtx2 != NULL) pthread_mutex_unlock(mtx2);
+    }
+  }
+  wrapBitmatrix(space, D, 2*(dim+1));
+  FREEMEMORY(space, D);
+  FREEMEMORY(space, enctab);
+  return;
+}
+
+void
+kmismatch(void *space,
+    Suffixarray *s,
+    fasta_t *reads,
+    Uint k,
+    Uint* counter,
+    Uint rep_type,
+    unsigned char silent,
+    FILE *dev)
+{
+  Uint i, curlen;
+  char *buffer, *curseq;
+  branch_t *V; 
+  Gmap map;
+  Uint noofmatches=0;
+  gread_t read;
+  Container C;
+  pthread_mutex_t *mtx=NULL;
+  
+  if (counter == NULL) {
+    initProgressBarVT();
+  } else { 
+    mtx = &mutex2;
+  }
+
+  initGmap(&map, s->seq, 1);
+  
+  for (i=0; i < reads->noofseqs; i++) {
+
+    noofmatches = 0;
+    initRead(&read, reads->seqs[i]);
+    setReads(&map, &read, 1);
+    
+    if (!silent) {
+      if (mtx == NULL) {
+        progressBarVT("reads matched.", reads->noofseqs, i, 25);
+      } else {
+        (*counter)++;
+      }
+    }
+
+    curseq = reads->seqs[i]->sequence;
+    curlen = reads->seqs[i]->length;
+
+    V=kmis(space, s, curseq, curlen, k, &noofmatches);
+
+    if(noofmatches) {
+      bl_containerInit(&C, 100, sizeof(gmatch_t));
+      branch2match(s, &C, V, noofmatches);
+      setMatches(&read, (gmatch_t*)C.contspace, 
+		 bl_containerSize(&C), PLUSSTRAND);
+      
+      reportMatch(dev, &map, rep_type, 0, mtx, curlen, curlen);
+      bl_containerDestruct(&C, NULL);
+      FREEMEMORY(space, V);
+    }
+
+    initRead(&read, reads->seqs[i]);
+    setReads(&map, &read, 1);
+    
+    buffer = charDNAcomplement(space, curseq, curlen);
+    V=kmis(space, s, buffer, curlen, k, &noofmatches);
+
+    if(noofmatches) {
+      bl_containerInit(&C, 100, sizeof(gmatch_t));
+      branch2match(s, &C, V, noofmatches);
+      setMatches(&read, (gmatch_t*)C.contspace, 
+		 bl_containerSize(&C), MINUSSTRAND);
+      reportMatch(dev, &map, rep_type, 0, mtx, curlen, curlen);
+      bl_containerDestruct(&C, NULL);
+      FREEMEMORY(space, V);
+    }
+    FREEMEMORY(space, buffer);
+  }
+
+  return;
+}
+

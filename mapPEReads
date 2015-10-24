@@ -1,0 +1,93 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+trimPE="java -classpath /home/users/sachin/software/Trimmomatic-0.22/trimmomatic-0.22.jar org.usadellab.trimmomatic.TrimmomaticPE"
+TOPHAT="/usr/local/opt/tophat/tophat-2.0.6.Linux_x86_64/tophat2"
+GENOMEINDEX="/home/projects/users/sachin/boehmseq/genomes/hg19/hg19"
+export PATH=$PATH:/home/users/sachin/software/FastQC
+export PATH=$PATH:/home/users/sachin/software/fastx/bin
+export PATH=$PATH:/home/users/sachin/software/myScripts
+
+#### usage ####
+usage() {
+	echo Program: "mapPEReads.sh (perform quqlity check, filter and mapping of \"paired-end\" reads)"
+	echo Author: RTH, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: sachin@rth.dk
+	echo "Usage: mapPEReads.sh -i <file> -j <file> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [input file with first read pair (FastQ format)]"
+	echo " -j <file>   [input file with second read pair (FastQ format)]"
+	echo "[Quality check]"
+	echo " -q <dir>    [output directory to store read quality report]"
+	echo "[Trim adapters]"
+	echo " -r <dir>    [output directory to store filtered reads (FASTA format)]"
+	echo " -a <file>   [input file with adapter sequences]"
+	echo "[Map reads]"
+	echo " -m <dir>    [output directory to store mapped reads (SAM format)]"
+	echo " -g <file>   [indexed genome file required for mapping (default: /home/projects/users/sachin/boehmseq/genomes/hg19/hg19)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:q:r:a:m:g:h ARG; do
+	case "$ARG" in
+		i) READ1=$OPTARG;;
+		j) READ2=$OPTARG;;
+		q) QUALITYDIR=$OPTARG;;
+		r) READDIR=$OPTARG;;
+		a) ADAPTERFILE=$OPTARG;;
+		m) MAPDIR=$OPTARG;;
+		g) GENOMEINDEX=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$READ1" -o ! -f "$READ2" -o ! -d "$READDIR" -o "$HELP" ]; then
+	usage
+fi
+
+## retrieve file name
+ID=`echo $READ1 | perl -ane '$_=~s/^.+\///g; $_=~s/\_index.+$//g; print $_;'`;
+ID1=`echo $READ1 | perl -ane '$_=~s/^.+\///g; $_=~s/\..+//g; print $_;'`;
+ID2=`echo $READ2 | perl -ane '$_=~s/^.+\///g; $_=~s/\..+//g; print $_;'`;
+
+echo "Computing for $ID $ID1 $ID2"
+
+## quality check
+if [ ! -z "${QUALITYDIR}" ]; then
+	eval fastqc \"$READ1\" -o $QUALITYDIR
+	eval fastqc \"$READ2\" -o $QUALITYDIR
+fi
+
+## trim adapters
+if [ ! -z "${ADAPTERFILE}" ]; then
+	#clipAdapter.pl -i $READ1 -a AAGCAGTGGTATCAACGCAGAGTA -l 6 > $READDIR/$ID1.fq.tmp;
+	#clipAdapter.pl -i $READ2 -a AAGCAGTGGTATCAACGCAGAGTA -l 6 > $READDIR/$ID2.fq.tmp;
+
+	#zless $READ1 | fastx_clipper -a AAGCAGTGGTATCAACGCAGAGTACTTTTTTTTTTTTTTTTTTTTTTTTT -M 20 -l 5 | fastx_clipper -a AAGCAGTGGTATCAACGCAGAGTACTTTTT -M 20 -l 5 | fastx_clipper -a GATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGC -M 35 -l 5 > $READDIR/$ID1.fq.tmp;
+	#zless $READ2 | fastx_clipper -a AAGCAGTGGTATCAACGCAGAGTACTTTTTTTTTTTTTTTTTTTTTTTTT -M 20 -l 5 | fastx_clipper -a AAGCAGTGGTATCAACGCAGAGTACTTTTT -M 20 -l 5 | fastx_clipper -a GATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGC -M 35 -l 5 > $READDIR/$ID2.fq.tmp;
+
+	#gzip $READDIR/$ID1.fq.tmp;
+	#gzip $READDIR/$ID2.fq.tmp
+
+	READ1="$READDIR/$ID1.fq.tmp.gz";
+	READ2="$READDIR/$ID2.fq.tmp.gz";
+
+	eval $trimPE \"$READ1\" \"$READ2\" $READDIR/$ID1""_paired.fq.gz $READDIR/$ID1""_unpaired.fq.gz $READDIR/$ID2""_paired.fq.gz $READDIR/$ID2""_unpaired.fq.gz ILLUMINACLIP:$ADAPTERFILE:2:30:10 LEADING:20 TRAILING:20 SLIDINGWINDOW:4:15 MINLEN:36
+
+	## convert fastq to fasta
+	zless "$READDIR/$ID1""_paired.fq.gz" | fastq_to_fasta -n | perl -ane 'chomp($_); if($_=~/^\>/) { if(defined($header)) { print "$header#".length($seq)."\n$seq\n"; } $header=$_; $seq=(); } else { $seq.=$_; } END { print "$header#".length($seq)."\n$seq\n"; }' > "$READDIR/$ID1""_paired.fasta"
+	zless "$READDIR/$ID2""_paired.fq.gz" | fastq_to_fasta -n | perl -ane 'chomp($_); if($_=~/^\>/) { if(defined($header)) { print "$header#".length($seq)."\n$seq\n"; } $header=$_; $seq=(); } else { $seq.=$_; } END { print "$header#".length($seq)."\n$seq\n"; }' > "$READDIR/$ID2""_paired.fasta"
+fi
+
+## map reads
+if [ ! -z "${MAPDIR}" ]; then
+	$TOPHAT --b2-sensitive -r 100 --mate-std-dev 40 -p 12 -o $MAPDIR $GENOMEINDEX $READDIR/$ID1"_paired.fasta" $READDIR/$ID2"_paired.fasta"
+	#segemehl.x -d /chromo/rna01/nobackup/anthon/hg19/hg19.fa -i /chromo/rna01/nobackup/anthon/hg19/hg19.idx -q $READDIR/$ID1"_paired.fasta" -p $READDIR/$ID2"_paired.fasta" -m 18 -t 16 -V -A 90 -S -u $MAPDIR/$ID.unmapped > $MAPDIR/$ID.sam
+fi
+
+echo "Done"

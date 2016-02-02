@@ -1,0 +1,78 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+GENOME="mm9"
+
+#### usage ####
+usage() {
+	echo Program: "bed2gc_content (compute gc content for sequences corresponding to input coordinates)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2gc_content -i <file> -o <dir> [OPTIONS]"
+	echo "Options:"
+	echo " -i <file>   [input BED file]"
+    echo " -o <dir>    [output directory]"
+    echo "[OPTIONS]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:o:g:h ARG; do
+	case "$ARG" in
+        i) INFILE=$OPTARG;;
+        o) OUTDIR=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$INFILE" -o -z "$OUTDIR" -o "$HELP" ]; then
+	usage
+fi
+
+## populating files based on input genome
+if [ "$GENOME" == "mm9" ]; then
+    GENOME_FILE="/home/pundhir/project/genome_annotations/mouse.mm9.genome"
+    GENOME_FASTA="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr/Bowtie2IndexWithAbundance.fa"
+elif [ "$GENOME" == "hg19" ]; then
+    GENOME_FILE="/home/pundhir/project/genome_annotations/human.hg19.genome"
+    GENOME_FASTA="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr/genome_and_Abundant.fa"
+else
+    echo "Presently the program only support analysis for mm9 or hg19"
+    echo
+    usage
+fi
+
+## create output directory, if it does not exist
+if [ ! -d "$OUTDIR" ]; then
+    mkdir $OUTDIR
+fi
+
+## create temporary file if input is from stdin
+if [ "$INFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo ${LINE}
+    done | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";' > $TMP
+    INFILE=$TMP
+fi
+
+## retrieve name of input file
+NAME=$(echo $INFILE | perl -ane '$_=~s/^.*\///g; print $_;')
+
+bedtools getfasta -fi $GENOME_FASTA -bed $INFILE -fo $OUTDIR/$NAME.fasta -s
+get_gc_content.pl $OUTDIR/$NAME.fasta &>/dev/null
+mv gc_out.txt $OUTDIR/gc_content.txt
+bed2gc_content.R -i $OUTDIR/gc_content.txt
+#fasta2seqlogo.R -i $OUTDIR/$NAME.fasta
+
+## remove temporary file
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+    rm $OUTDIR/$NAME.fasta
+fi

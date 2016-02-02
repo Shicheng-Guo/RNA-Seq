@@ -38,7 +38,7 @@ plot_seqlogo <-function(fasta_string){
 }
 
 outfile=sprintf("%s.pdf", opt$input)
-pdf(outfile, width=20)
+pdf(outfile, width=40)
 plot_seqlogo(fasta)
 dev.off()
 

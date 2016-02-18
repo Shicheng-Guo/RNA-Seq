@@ -1,0 +1,65 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+GENOME="mm9"
+
+#### usage ####
+usage() {
+	echo Program: "rnapipe2heatmap (plot heatmap using output from RNApipe and spliceR script)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: rnapipe2heatmap -i <dir> [OPTIONS]"
+	echo "Options:"
+	echo " -i <dir>   [RNApipe result directory]"
+    echo "[OPTIONS]"
+    echo " -g <string> [genome (default: mm9)]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:g:h ARG; do
+	case "$ARG" in
+        i) INDIR=$OPTARG;;
+        g) GENOME=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ -z "$INDIR" -o "$HELP" ]; then
+	usage
+fi
+
+## populating files based on input genome
+if [ "$GENOME" == "mm9" ]; then
+    GENOME_FILE="/home/pundhir/project/genome_annotations/mouse.mm9.genome"
+    GENOME_FASTA="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr/Bowtie2IndexWithAbundance.fa"
+elif [ "$GENOME" == "hg19" ]; then
+    GENOME_FILE="/home/pundhir/project/genome_annotations/human.hg19.genome"
+    GENOME_FASTA="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr/genome_and_Abundant.fa"
+else
+    echo "Presently the program only support analysis for mm9 or hg19"
+    echo
+    usage
+fi
+
+SPLICER_DIR="$INDIR/output/5_spliceR_analysis"
+CUFFDIFF_DIR="$INDIR/05_cuffdiff"
+if [ ! -d "$SPLICER_DIR" -o ! -d "$CUFFDIFF_DIR" ]; then
+    echo "Cannot find $SPLICER_DIR or $CUFFDIFF_DIR"
+    echo
+    exit
+fi
+
+for i in $(less $SPLICER_DIR/mySpliceRList_hc_gene_sig.xls | cut -f 1 | grep -v spliceR | sed -E 's/[\"\)]+//g' | uniq); do
+    grep -w $i $CUFFDIFF_DIR/genes.count_matrix;
+done > $SPLICER_DIR/mySpliceRList_hc_gene_sig.expr
+
+for i in $(less $SPLICER_DIR/mySpliceRList_hc_iso_sig.xls | cut -f 2 | grep -v spliceR | sed -E 's/[\"\)]+//g' | uniq); do
+    grep -w $i $CUFFDIFF_DIR/genes.count_matrix;
+done > $SPLICER_DIR/mySpliceRList_hc_iso_sig.expr
+
+exit

@@ -34,8 +34,9 @@ if(is.null(opt$tab)) {
     data <- read.table(opt$inFile, header=as.logical(opt$header))
 }
 
-#listMarts()
-mart <- useMart("ensembl")
+#listMarts(host-"www.ensembl.org")
+#mart <- useMart("ensembl") -- obsolete
+mart <- useMart(biomart = "ENSEMBL_MART_ENSEMBL", host = "www.ensembl.org")
 
 #listDatasets(mart)
 if(opt$organism=="human") {

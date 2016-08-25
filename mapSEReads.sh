@@ -20,8 +20,8 @@ usage() {
 	echo " -m <dir>    [directory to store mapped reads (default: .)]"
 	echo " -g <string> [genome (default: mm9)]"
     echo "             [mm9 or hg19]"
-    echo " -s          [perform alignment accommodating for splice junctions using tophat]"
-    echo "             [default is to use bowtie]"
+    echo " -s          [perform alignment accommodating for splice junctions using tophat2]"
+    echo "             [default is to use bowtie2]"
     echo " -l <int>    [length of ChIP-seq fragment. If provided, reads will be extended to this length in bigWig files]"
     echo " -u          [report only uniquely mapped reads]"
     echo " -p <int>    [number of processors (default: 1)]"
@@ -63,7 +63,7 @@ if [ "$GENOME" == "mm9" ]; then
     ## bowtie2 (*bt2)
     #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2/Bowtie2IndexWithAbundance"
     ## bowtie2 (*bt2 - with chromosome)
-    GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr/Bowtie2IndexWithAbundance"
+    GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr_noscaffold/Bowtie2IndexWithAbundance"
     FASTAFILE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
     CHRSIZE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt"
 elif [ "$GENOME" == "hg19" ]; then
@@ -105,10 +105,12 @@ else
         mkdir $MAPDIR/
     fi
 
+<<"COMMENT"
+COMMENT
     if [ ! -z "$UNIQUE" ]; then
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | grep -v XS: | samtools view -S -b - | samtools sort - $MAPDIR/$ID
+        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam
     else
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | samtools view -S -b - | samtools sort - $MAPDIR/$ID
+        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam
     fi
 
     ## compute mapping statistics

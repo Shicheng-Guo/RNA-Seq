@@ -17,7 +17,7 @@ opt <- parse_args(parser)
 
 ## check, if all required arguments are given
 if(is.null(opt$matrixFile) | is.null(opt$outFile) | is.null(opt$treatment)) {
-	cat("\nProgram: matrix2heatmap (R script to plot heatmap corresponding to a heatmap)\n")
+	cat("\nProgram: matrix2heatmap (R script to plot heatmap corresponding to a count matrix)\n")
 	cat("Author: BRIC, University of Copenhagen, Denmark\n")
 	cat("Version: 1.0\n")
 	cat("Contact: pundhir@binf.ku.dk\n");

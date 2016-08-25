@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library("optparse"))
 
 ## parse command line arguments
 option_list <- list(
-	make_option(c("-i", "--countFile"), help="input read count file"),
+	make_option(c("-i", "--countFile"), help="input read count file (can be stdin, but should be matrix containing numbers only)"),
 	make_option(c("-o", "--outDir"), default=".", help="output directory to keep results (default: %default)"),
     make_option(c("-p", "--pvalue"), default="0.05", help="p-value (default: %default)"),
     make_option(c("-n", "--normalized"), help="input file contains normalized read couts", action="store_true"),
@@ -34,7 +34,11 @@ suppressPackageStartupMessages(library(ggplot2))
 #setwd("/Users/sachinpundhir/Lobster/project/rna-seq-analysis/matilda/result_CFUE_2Rep/06_deseq")
 #countTable <- read.table("ensembl_transcripts_raw_count", header=TRUE, row.names=1)
 #treatment <-unlist(strsplit("WT,WT,WT,KO,KO,KO", ","))
-countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=TRUE, row.names=1)
+if(identical(opt$countFile, "stdin")==T) {
+    countTable <- read.table(file("stdin"))
+} else {
+    countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=TRUE, row.names=1)
+}
 
 ## check number of treatments and conditions, if they are correctly provided
 if(ncol(countTable)!=length(unlist(strsplit(opt$treatment, ","))) | (!is.null(opt$condition) & ncol(countTable)!=length(unlist(strsplit(opt$treatment, ","))))) {

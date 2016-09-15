@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library("optparse"))
 
 ## parse command line arguments
 option_list <- list(
-	make_option(c("-i", "--matrixFile"), help="input read count file"),
+	make_option(c("-i", "--matrixFile"), help="input read count file (format: <id> <int> <int> <int> (..<int>..); can be stdin"),
 	make_option(c("-o", "--outFile"), help="output pdf file"),
     make_option(c("-t", "--treatment"), help="A comma seperated list about description of each column of matrix, example: WT_1,WT_2,WT_3,KO_1,KO_2,KO_3 (must be equal to the number of columns containing expression values in matrix)"),
     make_option(c("-w", "--replicates_wt"), default=3, help="Number of replicates for WT treatment (default: %default)"),
@@ -56,8 +56,10 @@ row.names(mat) <- data[which(data$total>=as.numeric(opt$minExpr)),]$V1
 colnames(mat) <- treatment
 #pdf(sprintf("%s.pdf", opt$matrixFile))
 pdf(opt$outFile)
-#heatmap(mat, Rowv=NA, scale="row", col=cm.colors(256), margins=c(5,10))
-heatmap.2(mat, col=bluered(256), scale="row", key=TRUE, symkey=FALSE, density.info="none", trace="none", cexRow=0.5, dendrogram="column", Rowv=F)
+## reverse matrix because by default heatmap plots it upside down
+heatmap(apply(mat, 2, rev), Colv=NA, Rowv=NA, scale="row", col=colorRampPalette(c("dodgerblue4","grey97", "sienna3"))(250), margins=c(5,10))
+#heatmap(apply(mat, 2, rev), Colv=NA, Rowv=NA, scale="row", col=bluered(256), margins=c(5,10))
+#heatmap.2(mat, col=bluered(256), scale="row", key=TRUE, symkey=FALSE, density.info="none", trace="none", cexRow=0.5, dendrogram="column", Rowv=F)
 #heatmap(as.dist(1-cor((mat))), Rowv=NA, scale="row", col=cm.colors(256), margins=c(5,10))
 dev.off()
 #save.session("test.session")

@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library("optparse"))
 
 ## parse command line arguments
 option_list <- list(
-	make_option(c("-i", "--countFile"), help="input read count file (can be stdin, but should be matrix containing numbers only)"),
+	make_option(c("-i", "--countFile"), help="input read count file (format: <id> <int> <int> <int> (..<int>..) | can be stdin)"),
 	make_option(c("-o", "--outDir"), default=".", help="output directory to keep results (default: %default)"),
     make_option(c("-p", "--pvalue"), default="0.05", help="p-value (default: %default)"),
     make_option(c("-n", "--normalized"), help="input file contains normalized read couts", action="store_true"),
@@ -35,7 +35,7 @@ suppressPackageStartupMessages(library(ggplot2))
 #countTable <- read.table("ensembl_transcripts_raw_count", header=TRUE, row.names=1)
 #treatment <-unlist(strsplit("WT,WT,WT,KO,KO,KO", ","))
 if(identical(opt$countFile, "stdin")==T) {
-    countTable <- read.table(file("stdin"))
+    countTable <- read.table(file("stdin"), header=F, row.names=1)
 } else {
     countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=TRUE, row.names=1)
 }
@@ -146,7 +146,7 @@ par(mfrow=c(2,2))
 plotMA(dds, ylim=c(-2,2))
 plotDispEsts(dds)
 hist(res$pvalue, breaks=20, col="grey")
-plot(attr(res, "filterNumRej"), type="b", xlab="quantile of 'baseMean'", ylab="number of rejections")
+#plot(attr(res, "filterNumRej"), type="b", xlab="quantile of 'baseMean'", ylab="number of rejections")
 dev.off()
 
 #suppressPackageStartupMessages(library(limma)) ## plotMA is available in both DESeq2 and limma
@@ -166,12 +166,38 @@ if(!is.null(opt$condition)) {
 
 dev.off()
 
-## print normalized read count of genes
-## this was wrong (https://support.bioconductor.org/p/66067/)
-#write.table(as.data.frame(assay(rld)), file=sprintf("%s/%s.normExpr.xls", opt$outDir, outFile), sep="\t", quote=F, col.names=T, row.names=T)
-## use following instead
-write.table(countTable_norm, file=sprintf("%s/%s.normExpr.xls", opt$outDir, outFile), sep="\t", quote=F, col.names=T, row.names=T)
+## plot volcano plot
+pdf(sprintf("%s/%s.volcano.pdf", opt$outDir, outFile), height=15, width=15)
+df <- as.data.frame(res)
+df$gene <- rownames(df)
+df$gene <- gsub(".*_[0-9]+_", "", df$gene)
+df <- df[,c(7,2,5,6)]
 
+with(df, plot(log2FoldChange, -log10(pvalue), pch=20, main="Volcano plot", xlim=c(-2.5,2)))
+
+# Add colored points: red if padj<0.05, orange if log2FC>1, green if both)
+#pvalue_threshold=as.numeric(opt$pvalue)
+#pvalue_threshold=summary(-log10(res[which(res$padj<0.05),]$pvalue))[5]
+pvalue_threshold=1
+pvalue_threshold=1/exp(pvalue_threshold*log(10))
+#with(subset(df, padj<pvalue_threshold ), points(log2FoldChange, -log10(pvalue), pch=20, col="blue"))
+#with(subset(df, abs(log2FoldChange)>1), points(log2FoldChange, -log10(pvalue), pch=20, col="orange"))
+with(subset(df, padj<pvalue_threshold), points(log2FoldChange, -log10(pvalue), pch=20, col="red"))
+
+# Label points with the textxy function from the calibrate plot
+library(calibrate)
+with(subset(df, padj<pvalue_threshold), textxy(log2FoldChange, -log10(pvalue), labs=gene, cex=.8))
+dev.off()
+
+
+## print normalized read count of genes
+## this was WRONG (https://support.bioconductor.org/p/66067/)
+#write.table(as.data.frame(assay(rld)), file=sprintf("%s/%s.normExpr.xls", opt$outDir, outFile), sep="\t", quote=F, col.names=T, row.names=T)
+## This is RIGHT (use following instead) (sorted by log2fold change)
+write.table(countTable_norm[order(-as.data.frame(res)[,2]),], file=sprintf("%s/%s.normExpr.xls", opt$outDir, outFile), sep="\t", quote=F, col.names=F, row.names=T)
+
+## print size factors for samples
+print(size_factors)
 
 ## save the session for further use
 save.session(sprintf("%s/%s.session", opt$outDir, outFile))

@@ -6,7 +6,8 @@ suppressPackageStartupMessages(library("Biostrings"))
 
 ## parse command line arguments
 option_list <- list(
-    make_option(c("-i", "--input"), help="input sequences is FASTA format")
+    make_option(c("-i", "--input"), help="input sequences is FASTA format (can be stdin)"),
+    make_option(c("-o", "--output"), help="output seqlogo pdf file (optional)")
 )
 
 parser <- OptionParser(usage = "%prog [options]", option_list=option_list)
@@ -23,7 +24,11 @@ if((is.null(opt$input))) {
 }
 
 ## credits for the code goes to https://gist.github.com/dianalow/9c9a3b1beed3367300d5
-data <- read.table(opt$input)
+if(identical(opt$input, "stdin")==T) {
+    data <- read.table(file("stdin"))
+} else {
+    data <- read.table(opt$input)
+}
 fasta <- as.vector(data[!grepl(">", data$V1),])
 fasta <- fasta[!grepl("N", fasta)]
 
@@ -37,7 +42,12 @@ plot_seqlogo <-function(fasta_string){
     #seqLogo(makePWM(freq),ic.scale=TRUE) #ic.scale determines either frequency or bits
 }
 
-outfile=sprintf("%s.pdf", opt$input)
+if(is.null(opt$output)) {
+    outfile=sprintf("%s.pdf", opt$input)
+} else {
+    outfile=opt$output
+}
+
 pdf(outfile, width=40)
 plot_seqlogo(fasta)
 dev.off()

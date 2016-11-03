@@ -36,9 +36,9 @@ if(identical(opt$matrixFile, "stdin")==T) {
 
 mat <- as.matrix(data)
 set.seed(1)
-#kc_script <- kmeans(as.dist(1-cor(t(mat))), as.numeric(opt$clusterCount))
+kc_script <- kmeans(as.dist(1-cor(t(mat))), as.numeric(opt$clusterCount))
 #kc_script <- kmeans(mat, as.numeric(opt$clusterCount))
-kc_script <- kmeans(dist(mat, method="DTW"), as.numeric(opt$clusterCount))
+#kc_script <- kmeans(dist(mat, method="DTW"), as.numeric(opt$clusterCount))
 
 mydata <- mat
 wss <- (nrow(mydata)-1)*sum(apply(mydata,2,var))
@@ -49,7 +49,9 @@ df$clusters <- kc_script$cluster
 df <- df[order(df$clusters),]
 
 pdf(opt$pdfFile)
-heatmap.2(as.matrix(df[,c(1:ncol(df)-1)]), dendrogram = "none", Rowv = FALSE, Colv = FALSE, trace = "none", col=bluered(10), labRow=NA, scale="row", na.rm=T)
+mat <- as.matrix(df[,c(1:ncol(df)-1)])
+#heatmap.2(mat, dendrogram = "none", Rowv = FALSE, Colv = FALSE, trace = "none", col=bluered(10), labRow=NA, scale="row", na.rm=T)
+heatmap(apply(mat, 2, rev), Colv=NA, Rowv=NA, scale="row", col=colorRampPalette(c("dodgerblue4","grey97", "sienna3"))(250), margins=c(5,10))
 plot(1:15, wss, type="b", xlab="Number of Clusters", ylab="Within groups sum of squares")
 dev.off()
 

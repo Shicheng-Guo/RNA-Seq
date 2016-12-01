@@ -64,7 +64,7 @@ if [ -z "$BED" ]; then
     }' | grep -wv NA 
 else
     cat $INFILE 
-fi | perl -ane '
+fi  | perl -ane '
     $WIN='$WIN';
     if($F[5]=~/\-/) {
         if($F[3]=~/ESI/ || $F[3]=~/exon/) {
@@ -177,7 +177,7 @@ fi | perl -ane '
             $end=$F[2]+$WIN;
             print "$F[0]\t$start\t$end\tA3\t$F[4]\t$F[5]\t$F[6]\n";
         }
-    }'
+    }' | perl -ane '$line=""; foreach(@F) { $line.="$_\t"; } $line=~s/\t$//g; print "$line\n";'
 
 ## remove temporary file
 if [ ! -z "$TMP" ]; then

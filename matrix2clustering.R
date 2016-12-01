@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library("optparse"))
 
 ## parse command line arguments
 option_list <- list(
-	make_option(c("-i", "--matrixFile"), help="input count matrix file"),
+	make_option(c("-i", "--matrixFile"), help="input count matrix file (can be stdin)"),
 	make_option(c("-o", "--pdfFile"), help="output pdf file"),
 	make_option(c("-s", "--sessionFile"), help="output session file"),
     make_option(c("-n", "--clusterCount"), help="number of clusters")

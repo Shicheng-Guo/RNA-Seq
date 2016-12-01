@@ -29,6 +29,9 @@ suppressPackageStartupMessages(library(DESeq2))
 suppressPackageStartupMessages(library(session))
 suppressPackageStartupMessages(library(ggplot2))
 
+## create output directory, if does not exist
+dir.create(file.path(opt$outDir), showWarnings = FALSE)
+
 ## start analysis
 ## next three lines to debug
 #setwd("/Users/sachinpundhir/Lobster/project/rna-seq-analysis/matilda/result_CFUE_2Rep/06_deseq")
@@ -106,7 +109,11 @@ if(is.null(opt$normalized)) {
 #which results tables to construct.
 
 ## modify this line to compare different set of treatments
-res <- results(dds, contrast=c("treatment", "KO", "WT"))
+if(is.element("KO", treatment)) {
+    res <- results(dds, contrast=c("treatment", "KO", "WT"))
+} else {
+    res <- results(dds, contrast=c("treatment", unique(treatment)[2], unique(treatment)[1]))
+}
 #res <- results(dds, contrast=c("treatment", "t1", "t2"))
 #res <- results(dds, contrast=c("treatment", "KO", "WT"), cooksCutoff=FALSE, independentFiltering=FALSE)
 

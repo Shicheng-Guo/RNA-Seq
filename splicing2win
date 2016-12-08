@@ -52,7 +52,9 @@ NAME=$(echo $INFILE | perl -ane '$_=~s/^.*\///g; print $_;')
 ## create BED file containing exact position of splicing based on their type and strand orientation
 if [ -z "$BED" ]; then
     grep -v spliceR $INFILE | perl -ane '
-    @NAME=("ESI", "MEE", "MESI", "ISI", "A5", "A3");
+    #@NAME=("ESI", "MEE", "MESI", "ISI", "A5", "A3");
+    ## BUG in spliceR (switches between A5 and A3)
+    @NAME=("ESI", "MEE", "MESI", "ISI", "A3", "A5");
     $k=0;
     for($i=27; $i<=38; $i+=2) {
         @start=split(/[\;\,]+/,$F[$i]);
@@ -66,14 +68,15 @@ else
     cat $INFILE 
 fi  | perl -ane '
     $WIN='$WIN';
+    #print "#$_";
     if($F[5]=~/\-/) {
         if($F[3]=~/ESI/ || $F[3]=~/exon/) {
             $start=$F[2]-$WIN;
             $end=$F[2]+$WIN;
-            print "$F[0]\t$start\t$end\tESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
             $start=$F[1]-$WIN;
             $end=$F[1]+$WIN;
-            print "$F[0]\t$start\t$end\tESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
             $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
             $start=$mid-$WIN;
             $end=$mid+$WIN;
@@ -82,10 +85,10 @@ fi  | perl -ane '
         elsif($F[3]=~/MEE/) {
             $start=$F[2]-$WIN;
             $end=$F[2]+$WIN;
-            print "$F[0]\t$start\t$end\tMEE_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMEE_5p\t$F[4]\t$F[5]\t$F[6]\n";
             $start=$F[1]-$WIN;
             $end=$F[1]+$WIN;
-            print "$F[0]\t$start\t$end\tMEE_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMEE_3p\t$F[4]\t$F[5]\t$F[6]\n";
             $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
             $start=$mid-$WIN;
             $end=$mid+$WIN;
@@ -94,10 +97,10 @@ fi  | perl -ane '
         elsif($F[3]=~/MESI/) {
             $start=$F[2]-$WIN;
             $end=$F[2]+$WIN;
-            print "$F[0]\t$start\t$end\tMESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
             $start=$F[1]-$WIN;
             $end=$F[1]+$WIN;
-            print "$F[0]\t$start\t$end\tMESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
             $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
             $start=$mid-$WIN;
             $end=$mid+$WIN;
@@ -126,10 +129,10 @@ fi  | perl -ane '
         if($F[3]=~/ESI/ || $F[3]=~/exon/) {
             $start=$F[2]-$WIN;
             $end=$F[2]+$WIN;
-            print "$F[0]\t$start\t$end\tESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
             $start=$F[1]-$WIN;
             $end=$F[1]+$WIN;
-            print "$F[0]\t$start\t$end\tESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
             $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
             $start=$mid-$WIN;
             $end=$mid+$WIN;
@@ -138,10 +141,10 @@ fi  | perl -ane '
         elsif($F[3]=~/MEE/) {
             $start=$F[2]-$WIN;
             $end=$F[2]+$WIN;
-            print "$F[0]\t$start\t$end\tMEE_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMEE_3p\t$F[4]\t$F[5]\t$F[6]\n";
             $start=$F[1]-$WIN;
             $end=$F[1]+$WIN;
-            print "$F[0]\t$start\t$end\tMEE_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMEE_5p\t$F[4]\t$F[5]\t$F[6]\n";
             $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
             $start=$mid-$WIN;
             $end=$mid+$WIN;
@@ -150,10 +153,10 @@ fi  | perl -ane '
         elsif($F[3]=~/MESI/) {
             $start=$F[2]-$WIN;
             $end=$F[2]+$WIN;
-            print "$F[0]\t$start\t$end\tMESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
             $start=$F[1]-$WIN;
             $end=$F[1]+$WIN;
-            print "$F[0]\t$start\t$end\tMESI_3p\t$F[4]\t$F[5]\t$F[6]\n";
+            print "$F[0]\t$start\t$end\tMESI_5p\t$F[4]\t$F[5]\t$F[6]\n";
             $mid=sprintf("%0.0f", ($F[1]+$F[2])/2);
             $start=$mid-$WIN;
             $end=$mid+$WIN;

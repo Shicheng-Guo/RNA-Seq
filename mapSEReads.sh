@@ -15,7 +15,7 @@ usage() {
 	echo "Usage: mapSEReads.sh -i <file> [OPTIONS]"
 	echo "Options:"
 	echo " -i <file>   [input fastq file(s) with single end reads]"
-    echo "             [if multiple seperate them by a comma]"
+    echo "             [if multiple separate them by a comma]"
 	echo "[OPTIONS]"
 	echo " -m <dir>    [directory to store mapped reads (default: .)]"
 	echo " -g <string> [genome (default: mm9)]"
@@ -108,9 +108,9 @@ else
 <<"COMMENT"
 COMMENT
     if [ ! -z "$UNIQUE" ]; then
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam
+        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
     else
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam
+        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
     fi
 
     ## compute mapping statistics
@@ -132,6 +132,6 @@ COMMENT
     ## small RNA-seq
     #segemehl.x -s --minsize 18 -t 8 -d $FASTAFILE -i $GENOMEINDEX -q $READDIR/$ID".fasta" -V -A 85 > $MAPDIR/$ID.sam
     #bam2bed.pl -i $MAPDIR/$ID.sam -s -o $MAPDIR/$ID.bed
-fi
+fi 
 
 echo "done"

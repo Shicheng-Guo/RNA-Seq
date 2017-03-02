@@ -24,6 +24,7 @@ usage() {
     echo "             [default is to use bowtie2]"
     echo " -l <int>    [length of ChIP-seq fragment. If provided, reads will be extended to this length in bigWig files]"
     echo " -u          [report only uniquely mapped reads]"
+    echo " -c          [scale the read coverage to TPM in output bigWig files]"
     echo " -p <int>    [number of processors (default: 1)]"
 	echo " -h          [help]"
 	echo
@@ -31,7 +32,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:m:g:sl:up:h ARG; do
+while getopts i:m:g:sl:ucp:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -39,6 +40,7 @@ while getopts i:m:g:sl:up:h ARG; do
         s) SPLICE=1;;
         l) FRAGLENGTH=$OPTARG;;
         u) UNIQUE=1;;
+        c) SCALE=$OPTARG;;
         p) PROCESSORS=$OPTARG;;
 		h) HELP=1;;
 	esac
@@ -120,9 +122,17 @@ COMMENT
     ## create bigwig files for viualization at the UCSC genome browser
     if [ ! -z "$FRAGLENGTH" ]; then
         EXTEND=`perl -e '$diff='$FRAGLENGTH'-'$READLENGTH'; print "$diff";'`;
-        bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -e $EXTEND -c $CHRSIZE
+        if [ ! -z "$SCALE" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -e $EXTEND -c $CHRSIZE -s
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -e $EXTEND -c $CHRSIZE
+        fi
     else
-        bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -c $CHRSIZE
+        if [ ! -z "$SCALE" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -c $CHRSIZE -s
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -c $CHRSIZE
+        fi
     fi
 
     ## MEDIP-seq

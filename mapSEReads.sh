@@ -1,4 +1,3 @@
-#!/bin/bash
 #PBS -l nodes=1:ppn=4
 
 ## DEPENDENCIES
@@ -22,7 +21,6 @@ usage() {
     echo "             [mm9 or hg19]"
     echo " -s          [perform alignment accommodating for splice junctions using tophat2]"
     echo "             [default is to use bowtie2]"
-    echo " -l <int>    [length of ChIP-seq fragment. If provided, reads will be extended to this length in bigWig files]"
     echo " -u          [report only uniquely mapped reads]"
     echo " -c          [scale the read coverage to TPM in output bigWig files]"
     echo " -p <int>    [number of processors (default: 1)]"
@@ -38,7 +36,6 @@ while getopts i:m:g:sl:ucp:h ARG; do
 		m) MAPDIR=$OPTARG;;
 		g) GENOME=$OPTARG;;
         s) SPLICE=1;;
-        l) FRAGLENGTH=$OPTARG;;
         u) UNIQUE=1;;
         c) SCALE=$OPTARG;;
         p) PROCESSORS=$OPTARG;;
@@ -120,19 +117,10 @@ COMMENT
     samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt &
 
     ## create bigwig files for viualization at the UCSC genome browser
-    if [ ! -z "$FRAGLENGTH" ]; then
-        EXTEND=`perl -e '$diff='$FRAGLENGTH'-'$READLENGTH'; print "$diff";'`;
-        if [ ! -z "$SCALE" ]; then
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -e $EXTEND -c $CHRSIZE -s
-        else
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -e $EXTEND -c $CHRSIZE
-        fi
+    if [ ! -z "$SCALE" ]; then
+        bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s
     else
-        if [ ! -z "$SCALE" ]; then
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -c $CHRSIZE -s
-        else
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -c $CHRSIZE
-        fi
+        bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e
     fi
 
     ## MEDIP-seq

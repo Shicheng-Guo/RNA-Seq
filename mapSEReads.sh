@@ -23,6 +23,7 @@ usage() {
     echo "             [default is to use bowtie2]"
     echo " -u          [report only uniquely mapped reads]"
     echo " -c          [scale the read coverage to TPM in output bigWig files]"
+    echo " -e          [extend 3' end of reads in output bigWig files]"
     echo " -p <int>    [number of processors (default: 1)]"
 	echo " -h          [help]"
 	echo
@@ -30,14 +31,15 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:m:g:sl:ucp:h ARG; do
+while getopts i:m:g:sucep:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
 		g) GENOME=$OPTARG;;
         s) SPLICE=1;;
         u) UNIQUE=1;;
-        c) SCALE=$OPTARG;;
+        c) SCALE=1;;
+        e) EXTEND=1;;
         p) PROCESSORS=$OPTARG;;
 		h) HELP=1;;
 	esac
@@ -118,9 +120,17 @@ COMMENT
 
     ## create bigwig files for viualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
-        bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s
+        if [ ! -z "$EXTEND" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -s
+        fi
     else
-        bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e
+        if [ ! -z "$EXTEND" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME
+        fi
     fi
 
     ## MEDIP-seq

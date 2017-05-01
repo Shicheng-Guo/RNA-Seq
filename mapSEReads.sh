@@ -25,13 +25,14 @@ usage() {
     echo " -c          [scale the read coverage to TPM in output bigWig files]"
     echo " -e          [extend 3' end of reads in output bigWig files]"
     echo " -p <int>    [number of processors (default: 1)]"
+    echo " -r          [map reads for repeat analysis using RepEnrich]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:m:g:sucep:h ARG; do
+while getopts i:m:g:sucep:rh ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -41,6 +42,7 @@ while getopts i:m:g:sucep:h ARG; do
         c) SCALE=1;;
         e) EXTEND=1;;
         p) PROCESSORS=$OPTARG;;
+        r) REPENRICH=1;;
 		h) HELP=1;;
 	esac
 done
@@ -59,23 +61,29 @@ echo done
 
 echo -n "Populating files based on input genome, $GENOME (`date`).. "
 if [ "$GENOME" == "mm9" ]; then
-    ## tophat (bowtie1 - *ebwt)
-    #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2/Bowtie2IndexWithAbundance"
-    ## bowtie2 (*bt2)
-    #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2/Bowtie2IndexWithAbundance"
-    ## bowtie2 (*bt2 - with chromosome)
-    GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr_noscaffold/Bowtie2IndexWithAbundance"
-    FASTAFILE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
-    CHRSIZE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt"
+    if [ ! -z "$REPENRICH" ]; then
+        ## tophat (bowtie1 - *ebwt)
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie/Bowtie2IndexWithAbundance"
+    else
+        ## bowtie2 (*bt2)
+        #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2/Bowtie2IndexWithAbundance"
+        ## bowtie2 (*bt2 - with chromosome)
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr_noscaffold/Bowtie2IndexWithAbundance"
+        FASTAFILE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
+        CHRSIZE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt"
+    fi
 elif [ "$GENOME" == "hg19" ]; then
-    ## tophat (bowtie1 - *ebwt)
-    #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie/genome_and_Abundant"
-    ## bowtie2 (*bt2)
-    #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2/genome_and_Abundant"
-    ## bowtie2 (*bt2 - with chromosome)
-    GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr/genome_and_Abundant"
-    FASTAFILE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
-    CHRSIZE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/ChromInfoRef.txt"
+    if [ ! -z "$REPENRICH" ]; then
+        ## tophat (bowtie1 - *ebwt)
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie/genome_and_Abundant"
+    else
+        ## bowtie2 (*bt2)
+        #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2/genome_and_Abundant"
+        ## bowtie2 (*bt2 - with chromosome)
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr/genome_and_Abundant"
+        FASTAFILE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
+        CHRSIZE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/ChromInfoRef.txt"
+    fi
 else
     echo "Presently the program only support analysis for mm9 or hg19"
     echo
@@ -101,6 +109,17 @@ if [ ! -z "$SPLICE" ]; then
 
     ## create bigwig files for viualization at the UCSC genome browser
     bedtools bamtobed -i $MAPDIR/$ID/accepted_hits.bam -bed12 | grep '^[1-9XY]' | awk '{print "chr"$0}' > $MAPDIR/$ID/accepted_hits_corrected.bed && bedtools genomecov -bg -i $MAPDIR/$ID/accepted_hits_corrected.bed -g $CHRSIZE -split > $MAPDIR/$ID/accepted_hits.bedGraph && bedGraphToBigWig $MAPDIR/$ID/accepted_hits.bedGraph $CHRSIZE $MAPDIR/$ID.bw && rm $MAPDIR/$ID/accepted_hits.bedGraph
+elif [ ! -z "$REPENRICH" ]; then
+    if [ ! -d "$MAPDIR" ]; then
+        mkdir $MAPDIR/
+    fi
+
+    bowtie $GENOMEINDEX -p $PROCESSORS -t -m 1 -S --max $MAPDIR/$ID"_multimap.fastq" $FASTQ $MAPDIR/$ID"_unique.sam"
+    samtools view -bS $MAPDIR/$ID"_unique.sam" > $MAPDIR/$ID"_unique.bam"
+    samtools sort $MAPDIR/$ID"_unique.bam" -o $MAPDIR/$ID"_unique_sorted.bam"
+    mv $MAPDIR/$ID"_unique_sorted.bam" $MAPDIR/$ID"_unique.bam"
+    samtools index $MAPDIR/$ID"_unique.bam"
+    rm $MAPDIR/$ID"_unique.sam"
 else
     if [ ! -d "$MAPDIR" ]; then
         mkdir $MAPDIR/

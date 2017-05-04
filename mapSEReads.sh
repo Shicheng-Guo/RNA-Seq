@@ -114,11 +114,11 @@ elif [ ! -z "$REPENRICH" ]; then
         mkdir $MAPDIR/
     fi
 
-    bowtie $GENOMEINDEX -p $PROCESSORS -t -m 1 -S --max $MAPDIR/$ID"_multimap.fastq" $FASTQ $MAPDIR/$ID"_unique.sam"
+    bowtie $GENOMEINDEX -p $PROCESSORS -t -m 1 -S --max $MAPDIR/$ID"_multimap.fastq" $FASTQ $MAPDIR/$ID"_unique.sam" &>$MAPDIR/$ID.log
     samtools view -bS $MAPDIR/$ID"_unique.sam" > $MAPDIR/$ID"_unique.bam"
     samtools sort $MAPDIR/$ID"_unique.bam" -o $MAPDIR/$ID"_unique_sorted.bam"
     mv $MAPDIR/$ID"_unique_sorted.bam" $MAPDIR/$ID"_unique.bam"
-    samtools index $MAPDIR/$ID"_unique.bam"
+    samtools index $MAPDIR/$ID"_unique.bam" && samtools idxstats $MAPDIR/$ID"_unique.bam" > $MAPDIR/$ID.MappingStatistics.txt
     rm $MAPDIR/$ID"_unique.sam"
 else
     if [ ! -d "$MAPDIR" ]; then
@@ -126,7 +126,6 @@ else
     fi
 
 <<"COMMENT"
-COMMENT
     if [ ! -z "$UNIQUE" ]; then
         zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
     else
@@ -135,9 +134,10 @@ COMMENT
 
     ## compute mapping statistics
     ## idxstat format: The output is TAB delimited with each line consisting of reference sequence name, sequence length, # mapped reads and # unmapped reads. 
-    samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt &
+    samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt
+COMMENT
 
-    ## create bigwig files for viualization at the UCSC genome browser
+    ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
         if [ ! -z "$EXTEND" ]; then
             bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s

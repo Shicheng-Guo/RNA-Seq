@@ -35,7 +35,7 @@ fi
 ## check if output directory exists
 echo -n "Create appropriate directory structure... "
 if [ ! -d "$QUALITYDIR" ]; then
-    mkdir $QUALITYDIR
+    mkdir -p $QUALITYDIR
 fi
 echo "done"
 

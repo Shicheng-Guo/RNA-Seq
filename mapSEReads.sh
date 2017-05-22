@@ -26,13 +26,14 @@ usage() {
     echo " -e          [extend 3' end of reads in output bigWig files]"
     echo " -p <int>    [number of processors (default: 1)]"
     echo " -r          [map reads for repeat analysis using RepEnrich]"
+    echo " -d <string> [identifier for output BAM file (default: will be derived from input fastq file)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:m:g:sucep:rh ARG; do
+while getopts i:m:g:sucep:rd:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -43,6 +44,7 @@ while getopts i:m:g:sucep:rh ARG; do
         e) EXTEND=1;;
         p) PROCESSORS=$OPTARG;;
         r) REPENRICH=1;;
+        d) ID=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -92,7 +94,9 @@ fi
 echo done
 
 ## retrieve file name
-ID=`echo $FASTQ | perl -an -F'/\,/' -e '$ID=(); foreach(@F) { $_=~s/^.+\///g; $_=~s/\..+$//g; chomp($_); $ID.=$_."_"; } $ID=~s/\_$//g; print "$ID\n";' | perl -an -F'//' -e 'chomp($_); if(scalar(@F)>50) { $_=~s/\_R[0-9]+.*$//g; print "$_\n"; } else { print "$_\n"; }'`;
+if [ -z "$ID" ]; then
+    ID=`echo $FASTQ | perl -an -F'/\,/' -e '$ID=(); foreach(@F) { $_=~s/^.+\///g; $_=~s/\..+$//g; chomp($_); $ID.=$_."_"; } $ID=~s/\_$//g; print "$ID\n";' | perl -an -F'//' -e 'chomp($_); if(scalar(@F)>50) { $_=~s/\_R[0-9]+.*$//g; print "$_\n"; } else { print "$_\n"; }'`;
+fi
 FASTQ=$(echo $FASTQ | sed 's/\,/ /g')
 READLENGTH=`zless $FASTQ | head -n 2 | tail -n 1 | perl -ane '$len=length($_)-1; print $len;'`;
 #echo -e "$ID\t$READLENGTH"; exit;

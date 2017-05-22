@@ -5,7 +5,7 @@
 READDIR="."
 MINLEN=18
 MINQUAL=20
-TRIMLEN=0
+FIRSTBASE=1
 
 #### usage ####
 usage() {
@@ -26,14 +26,15 @@ usage() {
 	echo " -t          [also output quality filtered reads in FASTA format]"
     echo " -l <int>    [minimum length of the reads (default: 18)]"
     echo " -u <int>    [minimum quality of the reads (default: 20)]"
-    echo " -k <int>    [trim first few nucleotides (default: 0)]"
+    echo " -k <int>    [first base to keep (default: 1)]"
+    echo " -x <int>    [last base to keep (default: entire read)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:r:a:tl:u:k:h ARG; do
+while getopts i:r:a:tl:u:k:x:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		r) READDIR=$OPTARG;;
@@ -41,8 +42,8 @@ while getopts i:r:a:tl:u:k:h ARG; do
 		t) FASTA=1;;
         l) MINLEN=$OPTARG;;
         u) MINQUAL=$OPTARG;;
-        k) TRIMLEN=$OPTARG;;
-        p) PROCESSORS=$OPTARG;;
+        k) FIRSTBASE=$OPTARG;;
+        x) LASTBASE=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -68,8 +69,7 @@ echo "perform quality filter (trim adapters etc) for $ID... "
 if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 	if [ -f "$ADAPTER" ]; then
         # trim first few nucleotides
-        TRIMLEN=$(($TRIMLEN + 1))
-        fastx_trimmer -Q 33 -f $TRIMLEN -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
 
         # trim adapters and other artifacts using fastq-mcf
         fastq-mcf -o $READDIR/clipped_$ID.fastq.tmp -l $MINLEN -q $MINQUAL -w 4 -x 10 -t 0 $ADAPTER $READDIR/clipped_$ID.fastq
@@ -90,8 +90,7 @@ if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 		#fi
 	else
         # trim first few nucleotides
-        TRIMLEN=$(($TRIMLEN + 1))
-        fastx_trimmer -Q 33 -f $TRIMLEN -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
 
         # trim adapters and other artifacts using FastX
         fastx_clipper -a $ADAPTER -l $MINLEN -Q 33 -i $READDIR/clipped_$ID.fastq | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 > $READDIR/clipped_$ID.fastq.tmp
@@ -117,8 +116,11 @@ if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 	fi
 else
     # trim first few nucleotides
-    TRIMLEN=$(($TRIMLEN + 1))
-    fastx_trimmer -Q 33 -f $TRIMLEN -i $FASTQ -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/clipped_$ID.fastq
+    if [ ! -z "$LASTBASE" ]; then
+        fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -i $FASTQ -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/clipped_$ID.fastq
+    else
+        fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/clipped_$ID.fastq
+    fi
 fi
 
 echo "done"

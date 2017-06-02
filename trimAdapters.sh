@@ -69,7 +69,11 @@ echo "perform quality filter (trim adapters etc) for $ID... "
 if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 	if [ -f "$ADAPTER" ]; then
         # trim first few nucleotides
-        fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        if [ ! -z "$LASTBASE" ]; then
+            fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        else
+            fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        fi
 
         # trim adapters and other artifacts using fastq-mcf
         fastq-mcf -o $READDIR/clipped_$ID.fastq.tmp -l $MINLEN -q $MINQUAL -w 4 -x 10 -t 0 $ADAPTER $READDIR/clipped_$ID.fastq
@@ -90,7 +94,11 @@ if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 		#fi
 	else
         # trim first few nucleotides
-        fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        if [ ! -z "$LASTBASE" ]; then
+            fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        else
+            fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+        fi
 
         # trim adapters and other artifacts using FastX
         fastx_clipper -a $ADAPTER -l $MINLEN -Q 33 -i $READDIR/clipped_$ID.fastq | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 > $READDIR/clipped_$ID.fastq.tmp

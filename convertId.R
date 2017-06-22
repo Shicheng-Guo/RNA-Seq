@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library("optparse"))
 
 ## parse command line arguments
 option_list <- list(
-	make_option(c("-i", "--inFile"), help="input file"),
+	make_option(c("-i", "--inFile"), help="input file (can be stdin)"),
 	make_option(c("-r", "--organism"), default="human", help="organsim name (default: %default)"),
 	make_option(c("-d", "--header"), default=T, help="if file has header (default: %default)"),
 	make_option(c("-t", "--tab"), help="file is tab separated", action="store_true"),
@@ -30,9 +30,17 @@ suppressPackageStartupMessages(library(ggplot2))
 
 ## read input file
 if(is.null(opt$tab)) {
-    data <- read.table(opt$inFile, sep=",", header=as.logical(opt$header))
+    if(identical(opt$inFile, "stdin")==T) {
+        data <- read.table(file("stdin"), sep=",", header=as.logical(opt$header))
+    } else {
+        data <- read.table(opt$inFile, sep=",", header=as.logical(opt$header))
+    }
 } else {
-    data <- read.table(opt$inFile, header=as.logical(opt$header))
+    if(identical(opt$inFile, "stdin")==T) {
+        data <- read.table(file("stdin"), header=as.logical(opt$header))
+    } else {
+        data <- read.table(opt$inFile, header=as.logical(opt$header))
+    }
 }
 
 #listMarts(host="www.ensembl.org")
@@ -56,7 +64,7 @@ if(is.null(opt$bed)) {
     result <- merge(data, result, by.x=colnames(data)[1], by.y="ensembl_gene_id")
 
     outfile=sprintf("%s.geneId", opt$inFile)
-    write.table(result, outfile, sep="\t", quote=F, row.names=F, col.names=as.logical(opt$header))
+    write.table(result, "", sep="\t", quote=F, row.names=F, col.names=as.logical(opt$header))
 } else {
     result <- getBM(filters="ensembl_gene_id", attributes=c("ensembl_gene_id", "external_gene_name", "chromosome_name", "start_position", "end_position", "strand"), values=data[,1], mart=mart)
     #data$geneName <- as.vector(unlist(apply(data, 1, function(x) result[which(result$ensembl_gene_id==x[1]),2])))
@@ -67,5 +75,8 @@ if(is.null(opt$bed)) {
     start <- ncol(result)-3
     result[,start] <- sprintf("chr%s", result[,start])
     end <- ncol(result)
-    write.table(result[,c(start:end,1:(start-1))], outfile, sep="\t", quote=F, row.names=F, col.names=as.logical(opt$header))
+    result <- result[,c(start:end,1:(start-1))]
+    result[which(result$strand=="1"),]$strand <- "+"
+    result[which(result$strand=="-1"),]$strand <- "-"
+    write.table(result, "", sep="\t", quote=F, row.names=F, col.names=as.logical(opt$header))
 }

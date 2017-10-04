@@ -70,18 +70,18 @@ if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 	if [ -f "$ADAPTER" ]; then
         # trim first few nucleotides
         if [ ! -z "$LASTBASE" ]; then
-            fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+            zless $FASTQ | fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -m $MINLEN -o $READDIR/$ID.clipped.fastq
         else
-            fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+            zless $FASTQ | fastx_trimmer -Q 33 -f $FIRSTBASE -m $MINLEN -o $READDIR/$ID.clipped.fastq
         fi
 
         # trim adapters and other artifacts using fastq-mcf
-        fastq-mcf -o $READDIR/clipped_$ID.fastq.tmp -l $MINLEN -q $MINQUAL -w 4 -x 10 -t 0 $ADAPTER $READDIR/clipped_$ID.fastq
-        mv $READDIR/clipped_$ID.fastq.tmp $READDIR/clipped_$ID.fastq
+        fastq-mcf -o $READDIR/$ID.clipped.fastq.tmp -l $MINLEN -q $MINQUAL -w 4 -x 10 -t 0 $ADAPTER $READDIR/$ID.clipped.fastq
+        mv $READDIR/$ID.clipped.fastq.tmp $READDIR/$ID.clipped.fastq
 
         # convert fastq to fasta
 		if [ ! -z "$FASTA" ]; then
-            fastq_to_fasta -Q 33 -n -i $READDIR/clipped_$ID.fastq -o $READDIR/clipped_$ID.fasta 
+            fastq_to_fasta -Q 33 -n -i $READDIR/$ID.clipped.fastq -o $READDIR/$ID.clipped.fasta 
         fi
 
 		## USE FASTX ##
@@ -95,40 +95,47 @@ if [ ! -z "${ADAPTER}" -a ! -z "${READDIR}" ]; then
 	else
         # trim first few nucleotides
         if [ ! -z "$LASTBASE" ]; then
-            fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+            zless $FASTQ | fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -m $MINLEN -o $READDIR/$ID.clipped.fastq
         else
-            fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN -o $READDIR/clipped_$ID.fastq
+            zless $FASTQ | fastx_trimmer -Q 33 -f $FIRSTBASE -m $MINLEN -o $READDIR/$ID.clipped.fastq
         fi
 
         # trim adapters and other artifacts using FastX
-        fastx_clipper -a $ADAPTER -l $MINLEN -Q 33 -i $READDIR/clipped_$ID.fastq | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 > $READDIR/clipped_$ID.fastq.tmp
-        mv $READDIR/clipped_$ID.fastq.tmp $READDIR/clipped_$ID.fastq
+        fastx_clipper -a $ADAPTER -l $MINLEN -Q 33 -i $READDIR/$ID.clipped.fastq | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 > $READDIR/$ID.clipped.fastq.tmp
+        mv $READDIR/$ID.clipped.fastq.tmp $READDIR/$ID.clipped.fastq
 
         # convert fastq to fasta
 		if [ ! -z "$FASTA" ]; then
-            fastx_collapser -Q 33 -i $READDIR/clipped_$ID.fastq | perl -ane 'if($_=~/^>/) { $_=~s/\>//g; @t=split(/\-/,$_); print ">'$ID'_$t[0]|$t[1]"; } else { print $_; }' > $READDIR/clipped_$ID.fasta
+            fastx_collapser -Q 33 -i $READDIR/$ID.clipped.fastq | perl -ane 'if($_=~/^>/) { $_=~s/\>//g; @t=split(/\-/,$_); print ">'$ID'_$t[0]|$t[1]"; } else { print $_; }' > $READDIR/$ID.clipped.fasta
         fi
 
         # use fastx_clipper with '-n' parameter, if fasta file is empty
-		if [ ! -s "$READDIR/clipped_$ID.fastq" ]; then
+		if [ ! -s "$READDIR/$ID.clipped.fastq" ]; then
             # remove beginning of the read until the 'N'
             # trim adapters and other artifacts using FastX
-            fastx_clipper -a $ADAPTER -l $MINLEN -Q 33 -i $READDIR/clipped_$ID.fastq -n | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 > $READDIR/clipped_$ID.fastq.tmp
-            mv $READDIR/clipped_$ID.fastq.tmp $READDIR/clipped_$ID.fastq
+            fastx_clipper -a $ADAPTER -l $MINLEN -Q 33 -i $READDIR/$ID.clipped.fastq -n | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 > $READDIR/$ID.clipped.fastq.tmp
+            mv $READDIR/$ID.clipped.fastq.tmp $READDIR/$ID.clipped.fastq
 
             # convert fastq to fasta
 		    if [ ! -z "$FASTA" ]; then
-                zless $READDIR/clipped_$ID.fastq | fastq_to_fasta -Q 33 -n | perl -ane 'if($_=~/^\>/) { $header=$_; } else { $_=~s/^.+N//g; if(length($_)>='$MINLEN') { print "$header$_"; } }' | fastx_collapser -Q 33 | perl -ane 'if($_=~/^>/) { $_=~s/\>//g; @t=split(/\-/,$_); print ">'$ID'_$t[0]|$t[1]"; } else { print $_; }' > $READDIR/clipped_$ID.fasta
+                zless $READDIR/$ID.clipped.fastq | fastq_to_fasta -Q 33 -n | perl -ane 'if($_=~/^\>/) { $header=$_; } else { $_=~s/^.+N//g; if(length($_)>='$MINLEN') { print "$header$_"; } }' | fastx_collapser -Q 33 | perl -ane 'if($_=~/^>/) { $_=~s/\>//g; @t=split(/\-/,$_); print ">'$ID'_$t[0]|$t[1]"; } else { print $_; }' > $READDIR/$ID.clipped.fasta
             fi
 		fi
 	fi
 else
     # trim first few nucleotides
     if [ ! -z "$LASTBASE" ]; then
-        fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -i $FASTQ -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/clipped_$ID.fastq
+        zless $FASTQ | fastx_trimmer -Q 33 -f $FIRSTBASE -l $LASTBASE -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/$ID.clipped.fastq
     else
-        fastx_trimmer -Q 33 -f $FIRSTBASE -i $FASTQ -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/clipped_$ID.fastq
+        zless $FASTQ | fastx_trimmer -Q 33 -f $FIRSTBASE -m $MINLEN | fastq_quality_trimmer -t $MINQUAL -l $MINLEN -Q 33 | fastx_artifacts_filter -Q 33 -o $READDIR/$ID.clipped.fastq
     fi
+fi
+
+## compress output files
+gzip $READDIR/$ID.clipped.fastq
+
+if [ ! -z "$FASTA" ]; then
+    gzip $READDIR/$ID.clipped.fasta
 fi
 
 echo "done"

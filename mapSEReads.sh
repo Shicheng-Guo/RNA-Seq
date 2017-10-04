@@ -4,6 +4,9 @@
 MAPDIR="."
 PROCESSORS=1
 GENOME="mm9"
+ALNMODE="--sensitive"
+TRIM5=0
+TRIM3=0
 
 #### usage ####
 usage() {
@@ -30,13 +33,18 @@ usage() {
     echo " -c          [scale the read coverage to TPM in output bigWig files]"
     echo " -e          [extend 3' end of reads in output bigWig files]"
     echo " -k <int>    [instead of reporting best alignment, report input number of alignments per read]"
+    echo " -q <string> [end-to-end: --very-fast, --fast, --sensitive, --very-sensitive (default: --sensitive)]"
+    echo "             [local: --very-fast-local, --fast-local, --sensitive-local, --very-sensitive-local (default: --sesitive-local)"
+    echo " -l          [local alignment; ends might be soft clipped]"
+    echo " -f <int>    [trim <int> bases from 5'/left end of reads (default: 0)]"
+    echo " -t <int>    [trim <int> bases from 3'/right end of reads (default: 0)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:m:g:p:d:srucek:h ARG; do
+while getopts i:m:g:p:d:srucek:q:lf:t:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -49,6 +57,10 @@ while getopts i:m:g:p:d:srucek:h ARG; do
         c) SCALE=1;;
         e) EXTEND=1;;
         k) ALNCOUNT=$OPTARG;;
+        q) ALNMODE=$OPTARG;;
+        l) LOCAL=1;;
+        f) TRIM5=$OPTARG;;
+        t) TRIM3=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -139,12 +151,19 @@ else
 
 <<"COMMENT"
 COMMENT
+    ARGS=""
+    if [ ! -z "$ALNCOUNT" ]; then
+        ARGS="$ARGS -k $ALNCOUNT";
+    fi
+
+    if [ ! -z "$LOCAL" ]; then
+        ARGS="$ARGS --local";
+    fi
+
     if [ ! -z "$UNIQUE" ]; then
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
-    elif [ ! -z "$ALNCOUNT" ]; then
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -k $ALNCOUNT -U - | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
+        zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
     else
-        zcat -f $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
+        zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
     fi
 
     ## compute mapping statistics

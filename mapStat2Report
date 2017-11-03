@@ -1,0 +1,91 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+<<"copyright_info"
+mapStat2Report: create mapping efficiency report from mapSEReads.sh log file
+Copyright (C) 2017  Sachin Pundhir (pundhir@binf.ku.dk)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+copyright_info
+
+VERSION="0.01"
+
+#### usage ####
+usage() {
+	echo Program: "mapStat2Report (reate mapping efficiency report from mapSEReads.sh log file)"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: $VERSION
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: mapStat2Report -i <file> [OPTIONS]"
+	echo "Options:"
+    echo " -i <file>   [input log file from mapSEReads.sh script (can be stdin)]"
+    echo "[OPTIONS]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:h ARG; do
+	case "$ARG" in
+		i) LOGFILE=$OPTARG;;
+		h) HELP=1;;
+	esac
+done
+
+>&2 echo
+if [ "$HELP" ]; then
+    usage
+fi
+
+>&2 echo
+>&2 echo -n "Check, if all required parameters and files are provided (`date`).. "
+## usage, if necessary file and directories are given/exist
+if [ -z "$LOGFILE" ]; then
+    >&2 echo
+    >&2 echo "Error: one or more required paramter values not provided"
+    >&2 echo
+	usage
+fi
+>&2 echo "done"
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## create temporary BED file if input is from stdin
+if [ "$LOGFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo "${LINE}"
+    done > $TMP
+    LOGFILE=$TMP
+fi
+
+## extract information
+zless $LOGFILE | perl -ane 'if($_=~/Map for/) { $_=~s/Map for //g; $_=~s/\..*//g; chomp($_); print "\n$_"; } elsif($_=~/^\s*[0-9]+/) { chomp($_); print "\t$_"; }'
+echo
+
+## remove temporary file, if exists
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi

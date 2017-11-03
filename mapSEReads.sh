@@ -122,8 +122,9 @@ READLENGTH=`zless $FASTQ | head -n 2 | tail -n 1 | perl -ane '$len=length($_)-1;
 #echo -e "$ID\t$READLENGTH"; exit;
 
 ## map reads
-echo "Map for $ID... "
+echo "Map for $ID... " >$MAPDIR/$ID.mapStat
 #echo "$FASTAFILE $GENOMEINDEX $READDIR $ID"; exit;
+
 if [ ! -z "$SPLICE" ]; then
     tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ
 
@@ -161,14 +162,15 @@ COMMENT
     fi
 
     if [ ! -z "$UNIQUE" ]; then
-        zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
+            zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS 2>>$MAPDIR/$ID.mapStat | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam
     else
-        zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam &>$MAPDIR/$ID.log
+        zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS 2>>$MAPDIR/$ID.mapStat | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam
     fi
 
     ## compute mapping statistics
     ## idxstat format: The output is TAB delimited with each line consisting of reference sequence name, sequence length, # mapped reads and # unmapped reads. 
-    samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt
+    samtools index $MAPDIR/$ID.bam
+    #samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt
 
     ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then

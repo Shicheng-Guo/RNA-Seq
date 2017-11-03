@@ -3,7 +3,7 @@
 
 #### usage ####
 usage() {
-	echo Program: "mapStat.sh (determine number of reads, mapped and uniquely mapped reads from a SAM file)"
+	echo Program: "mapStat (determine number of reads, mapped and uniquely mapped reads from a SAM file)"
 	echo Author: RTH, University of Copenhagen, Denmark
 	echo Version: 1.0
 	echo Contact: sachin@rth.dk

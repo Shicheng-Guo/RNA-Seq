@@ -27,7 +27,7 @@ usage() {
     echo " -s          [perform alignment accommodating for splice junctions using tophat2]"
     echo "             [default is to use bowtie2]"
     echo " -r          [map reads for repeat analysis using bowtie (output multimapped reads)]"
-    echo "             [default is to use bowtie2]"
+    echo " -R          [map reads for repeat analysis using bowtie2]"
     echo "[OPTIONS: bowtie2]"
     echo " -u          [report only uniquely mapped reads]"
     echo " -c          [scale the read coverage to TPM in output bigWig files]"
@@ -38,13 +38,17 @@ usage() {
     echo " -l          [local alignment; ends might be soft clipped]"
     echo " -f <int>    [trim <int> bases from 5'/left end of reads (default: 0)]"
     echo " -t <int>    [trim <int> bases from 3'/right end of reads (default: 0)]"
+    echo " -L <int>    [length of seed substring; must be >3, <32 (default: 22)]"
+    echo " -I <string> [interval between seed substrings w/r/t read len (default: S,1,1.15)]"
+    echo " -D <int>    [give up extending after <int> failed extends in a row (default: 15)]"
+    echo " -R <int>    [for reads w/ repetitive seeds, try <int> sets of seeds (default: 2)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:m:g:p:d:srucek:q:lf:t:h ARG; do
+while getopts i:m:g:p:d:srRucek:q:lf:t:L:I:D:R:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -53,6 +57,7 @@ while getopts i:m:g:p:d:srucek:q:lf:t:h ARG; do
         d) ID=$OPTARG;;
         s) SPLICE=1;;
         r) REPENRICH=1;;
+        R) REPEATS=1;;
         u) UNIQUE=1;;
         c) SCALE=1;;
         e) EXTEND=1;;
@@ -61,6 +66,10 @@ while getopts i:m:g:p:d:srucek:q:lf:t:h ARG; do
         l) LOCAL=1;;
         f) TRIM5=$OPTARG;;
         t) TRIM3=$OPTARG;;
+        L) SEED=$OPTARG;;
+        I) INTERVAL=$OPTARG;;
+        D) GIVEUP=$OPTARG;;
+        R) TRIES=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -121,10 +130,37 @@ FASTQ=$(echo $FASTQ | sed 's/\,/ /g')
 READLENGTH=`zless $FASTQ | head -n 2 | tail -n 1 | perl -ane '$len=length($_)-1; print $len;'`;
 #echo -e "$ID\t$READLENGTH"; exit;
 
+## read arguments
+ARGS=""
+if [ ! -z "$ALNCOUNT" ]; then
+    ARGS="$ARGS -k $ALNCOUNT";
+fi
+
+if [ ! -z "$LOCAL" ]; then
+    ARGS="$ARGS --local";
+fi
+
+if [ ! -z "$SEED" ]; then
+    ARGS="$ARGS -L $SEED";
+fi
+
+if [ ! -z "$INTERVAL" ]; then
+    ARGS="$ARGS -i $INTERVAL";
+fi
+
+if [ ! -z "$GIVEUP" ]; then
+    ARGS="$ARGS -D $GIVEUP";
+fi
+
+if [ ! -z "$TRIES" ]; then
+    ARGS="$ARGS -R $TRIES";
+fi
+
 ## map reads
 echo "Map for $ID... " >$MAPDIR/$ID.mapStat
 #echo "$FASTAFILE $GENOMEINDEX $READDIR $ID"; exit;
 
+## start analysis
 if [ ! -z "$SPLICE" ]; then
     tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ
 
@@ -139,12 +175,40 @@ elif [ ! -z "$REPENRICH" ]; then
         mkdir $MAPDIR/
     fi
 
-    bowtie $GENOMEINDEX -p $PROCESSORS -t -m 1 -S --max $MAPDIR/$ID"_multimap.fastq" $FASTQ $MAPDIR/$ID"_unique.sam" &>$MAPDIR/$ID.log
+    bowtie $GENOMEINDEX -p $PROCESSORS -t -m 1 -S --max $MAPDIR/$ID"_multimap.fastq" $FASTQ $MAPDIR/$ID"_unique.sam" 2>>$MAPDIR/$ID.mapStat
     samtools view -bS $MAPDIR/$ID"_unique.sam" > $MAPDIR/$ID"_unique.bam"
     samtools sort $MAPDIR/$ID"_unique.bam" -o $MAPDIR/$ID"_unique_sorted.bam"
     mv $MAPDIR/$ID"_unique_sorted.bam" $MAPDIR/$ID"_unique.bam"
-    samtools index $MAPDIR/$ID"_unique.bam" && samtools idxstats $MAPDIR/$ID"_unique.bam" > $MAPDIR/$ID.MappingStatistics.txt
+    samtools index $MAPDIR/$ID"_unique.bam"
+    #samtools idxstats $MAPDIR/$ID"_unique.bam" > $MAPDIR/$ID.MappingStatistics.txt
     rm $MAPDIR/$ID"_unique.sam"
+elif [ ! -z "$REPEATS" ]; then
+    if [ ! -d "$MAPDIR" ]; then
+        mkdir $MAPDIR/
+    fi
+
+    ## inspired from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM1375157
+    ## command check
+    echo "Command used: zless $FASTQ | /home/pundhir/software/bowtie2-2.0.0-beta6/bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - -5 $TRIM5 -3 $TRIM3 $ARGS -D 15 -R 2 -N 0 -L 32 -i S,1,0.75 -M 10000" >>$MAPDIR/$ID.mapStat
+
+    zless $FASTQ | /home/pundhir/software/bowtie2-2.0.0-beta6/bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - -5 $TRIM5 -3 $TRIM3 $ARGS -D 15 -R 2 -N 0 -L 32 -i S,1,0.75 -M 10000 2>>$MAPDIR/$ID.mapStat | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam 
+
+    samtools index $MAPDIR/$ID.bam
+
+    ## create bigwig files for visualization at the UCSC genome browser
+    if [ ! -z "$SCALE" ]; then
+        if [ ! -z "$EXTEND" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -s
+        fi
+    else
+        if [ ! -z "$EXTEND" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME
+        fi
+    fi
 else
     if [ ! -d "$MAPDIR" ]; then
         mkdir $MAPDIR/
@@ -152,14 +216,8 @@ else
 
 <<"COMMENT"
 COMMENT
-    ARGS=""
-    if [ ! -z "$ALNCOUNT" ]; then
-        ARGS="$ARGS -k $ALNCOUNT";
-    fi
-
-    if [ ! -z "$LOCAL" ]; then
-        ARGS="$ARGS --local";
-    fi
+    ## command check
+    echo "Command used: zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS" >>$MAPDIR/$ID.mapStat
 
     if [ ! -z "$UNIQUE" ]; then
             zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS 2>>$MAPDIR/$ID.mapStat | grep -v XS: | samtools view -S -b - | samtools sort - -o $MAPDIR/$ID.bam

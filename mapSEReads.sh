@@ -162,14 +162,18 @@ echo "Map for $ID... " >$MAPDIR/$ID.mapStat
 
 ## start analysis
 if [ ! -z "$SPLICE" ]; then
+    echo "Command used: tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ" >>$MAPDIR/$ID.mapStat
     tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ
 
     ## compute mapping statistics
-    samtools index $MAPDIR/$ID"_accepted_hits.bam" $MAPDIR/$ID"_accepted_hits.bai" && samtools idxstats $MAPDIR/$ID"_accepted_hits.bam" > $MAPDIR/$ID"_accepted_MappingStatistics.txt" && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID"_accepted_MappingStatistics.txt" >> $MAPDIR/concatenated_accepted_MappingStatistics.txt &
-    samtools index $MAPDIR/$ID"_unmapped.bam" $MAPDIR/$ID"_unmapped.bai" && samtools idxstats $MAPDIR/$ID"_unmapped.bam" > $MAPDIR/$ID"_unmapped_MappingStatistics.txt" && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID"_unmapped_MappingStatistics.txt" >> $MAPDIR/concatenated_unmapped_MappingStatistics.txt &
+    #samtools index $MAPDIR/$ID"_accepted_hits.bam" $MAPDIR/$ID"_accepted_hits.bai" && samtools idxstats $MAPDIR/$ID"_accepted_hits.bam" > $MAPDIR/$ID"_accepted_MappingStatistics.txt" && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID"_accepted_MappingStatistics.txt" >> $MAPDIR/concatenated_accepted_MappingStatistics.txt &
+    #samtools index $MAPDIR/$ID"_unmapped.bam" $MAPDIR/$ID"_unmapped.bai" && samtools idxstats $MAPDIR/$ID"_unmapped.bam" > $MAPDIR/$ID"_unmapped_MappingStatistics.txt" && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID"_unmapped_MappingStatistics.txt" >> $MAPDIR/concatenated_unmapped_MappingStatistics.txt &
+    mv $MAPDIR/$ID/accepted_hits.bam $MAPDIR/$ID.bam
+    samtools index $MAPDIR/$ID.bam
+    zless $MAPDIR/$ID/align_summary.txt >> $MAPDIR/$ID.mapStat
 
     ## create bigwig files for viualization at the UCSC genome browser
-    bedtools bamtobed -i $MAPDIR/$ID"_accepted_hits.bam" -bed12 | grep '^[1-9XY]' | awk '{print "chr"$0}' > $MAPDIR/$ID"_accepted_hits_corrected.bed" && bedtools genomecov -bg -i $MAPDIR/$ID"_accepted_hits_corrected.bed" -g $CHRSIZE -split > $MAPDIR/$ID"_accepted_hits.bedGraph" && bedGraphToBigWig $MAPDIR/$ID"_accepted_hits.bedGraph" $CHRSIZE $MAPDIR/$ID.bw && rm $MAPDIR/$ID"_accepted_hits.bedGraph"
+    bedtools bamtobed -i $MAPDIR/$ID.bam -bed12 | grep '^[1-9XY]' | awk '{print "chr"$0}' > $MAPDIR/$ID/accepted_hits_corrected.bed && bedtools genomecov -bg -i $MAPDIR/$ID/accepted_hits_corrected.bed -g $CHRSIZE -split > $MAPDIR/$ID/accepted_hits.bedGraph && bedGraphToBigWig $MAPDIR/$ID/accepted_hits.bedGraph $CHRSIZE $MAPDIR/$ID.bw && rm $MAPDIR/$ID/accepted_hits.bedGraph
 elif [ ! -z "$REPENRICH" ]; then
     if [ ! -d "$MAPDIR" ]; then
         mkdir $MAPDIR/

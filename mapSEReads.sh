@@ -91,24 +91,28 @@ if [ "$GENOME" == "mm9" ]; then
     if [ ! -z "$REPENRICH" ]; then
         ## tophat (bowtie1 - *ebwt)
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie/Bowtie2IndexWithAbundance"
+    elif [ ! -z "$SPLICE" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/STAR/"
     else
         ## bowtie2 (*bt2)
         #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2/Bowtie2IndexWithAbundance"
         ## bowtie2 (*bt2 - with chromosome)
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2_chr_noscaffold/Bowtie2IndexWithAbundance"
-        FASTAFILE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
+        FASTAFILE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/TopHatTranscriptomeIndex_with_chr/genes_without_mt"
         CHRSIZE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt"
     fi
 elif [ "$GENOME" == "hg19" ]; then
     if [ ! -z "$REPENRICH" ]; then
         ## tophat (bowtie1 - *ebwt)
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie/genome_and_Abundant"
+    elif [ ! -z "$SPLICE" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/GRCh37/STAR/"
     else
         ## bowtie2 (*bt2)
         #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2/genome_and_Abundant"
         ## bowtie2 (*bt2 - with chromosome)
-        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr/genome_and_Abundant"
-        FASTAFILE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/TopHatTranscriptomeIndex/bowtie2/genes_without_mt"
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr_noscaffold/genome_and_Abundant"
+        FASTAFILE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/TopHatTranscriptomeIndex_with_chr/genes_without_mt"
         CHRSIZE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/ChromInfoRef.txt"
     fi
 elif [ "$GENOME" == "hg19_ifn" ]; then
@@ -162,18 +166,30 @@ echo "Map for $ID... " >$MAPDIR/$ID.mapStat
 
 ## start analysis
 if [ ! -z "$SPLICE" ]; then
-    echo "Command used: tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ" >>$MAPDIR/$ID.mapStat
-    tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ
+    echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zcat --outFileNamePrefix $ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigNorm RPM" >> $MAPDIR/$ID.mapStat
+
+    STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zcat --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigNorm RPM
+    mv $MAPDIR/$ID"Aligned.sortedByCoord.out.bam" $MAPDIR/$ID.bam
+    zless $MAPDIR/$ID"Log.final.out" >> $MAPDIR/$ID.mapStat
+    zless $MAPDIR/$ID"Log.progress.out" >> $MAPDIR/$ID.mapStat
+    zless $MAPDIR/$ID"Log.out" > $MAPDIR/$ID.log
+    zless $MAPDIR/$ID"SJ.out.tab" > $MAPDIR/$ID.SJ
+    samtools index $MAPDIR/$ID.bam
+    rm $MAPDIR/$ID"Log.final.out" $MAPDIR/$ID"Log.progress.out" $MAPDIR/$ID"Log.out" $MAPDIR/$ID"SJ.out.tab"
+
+    ## Tophat2
+    #echo "Command used: tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ" >>$MAPDIR/$ID.mapStat
+    #tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ
 
     ## compute mapping statistics
     #samtools index $MAPDIR/$ID"_accepted_hits.bam" $MAPDIR/$ID"_accepted_hits.bai" && samtools idxstats $MAPDIR/$ID"_accepted_hits.bam" > $MAPDIR/$ID"_accepted_MappingStatistics.txt" && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID"_accepted_MappingStatistics.txt" >> $MAPDIR/concatenated_accepted_MappingStatistics.txt &
     #samtools index $MAPDIR/$ID"_unmapped.bam" $MAPDIR/$ID"_unmapped.bai" && samtools idxstats $MAPDIR/$ID"_unmapped.bam" > $MAPDIR/$ID"_unmapped_MappingStatistics.txt" && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID"_unmapped_MappingStatistics.txt" >> $MAPDIR/concatenated_unmapped_MappingStatistics.txt &
-    mv $MAPDIR/$ID/accepted_hits.bam $MAPDIR/$ID.bam
-    samtools index $MAPDIR/$ID.bam
-    zless $MAPDIR/$ID/align_summary.txt >> $MAPDIR/$ID.mapStat
+    #mv $MAPDIR/$ID/accepted_hits.bam $MAPDIR/$ID.bam
+    #samtools index $MAPDIR/$ID.bam
+    #zless $MAPDIR/$ID/align_summary.txt >> $MAPDIR/$ID.mapStat
 
     ## create bigwig files for viualization at the UCSC genome browser
-    bedtools bamtobed -i $MAPDIR/$ID.bam -bed12 | grep '^[1-9XY]' | awk '{print "chr"$0}' > $MAPDIR/$ID/accepted_hits_corrected.bed && bedtools genomecov -bg -i $MAPDIR/$ID/accepted_hits_corrected.bed -g $CHRSIZE -split > $MAPDIR/$ID/accepted_hits.bedGraph && bedGraphToBigWig $MAPDIR/$ID/accepted_hits.bedGraph $CHRSIZE $MAPDIR/$ID.bw && rm $MAPDIR/$ID/accepted_hits.bedGraph
+    #bedtools bamtobed -i $MAPDIR/$ID.bam -bed12 | grep '^[1-9XY]' | awk '{print "chr"$0}' > $MAPDIR/$ID/accepted_hits_corrected.bed && bedtools genomecov -bg -i $MAPDIR/$ID/accepted_hits_corrected.bed -g $CHRSIZE -split > $MAPDIR/$ID/accepted_hits.bedGraph && bedGraphToBigWig $MAPDIR/$ID/accepted_hits.bedGraph $CHRSIZE $MAPDIR/$ID.bw && rm $MAPDIR/$ID/accepted_hits.bedGraph
 elif [ ! -z "$REPENRICH" ]; then
     if [ ! -d "$MAPDIR" ]; then
         mkdir $MAPDIR/

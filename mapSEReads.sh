@@ -166,9 +166,9 @@ echo "Map for $ID... " >$MAPDIR/$ID.mapStat
 
 ## start analysis
 if [ ! -z "$SPLICE" ]; then
-    echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zcat --outFileNamePrefix $ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigNorm RPM" >> $MAPDIR/$ID.mapStat
+    echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zless --outFileNamePrefix $ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigNorm RPM --outWigStrand Unstranded" >> $MAPDIR/$ID.mapStat
 
-    STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zcat --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigNorm RPM
+    STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigNorm RPM --outWigStrand Unstranded
     mv $MAPDIR/$ID"Aligned.sortedByCoord.out.bam" $MAPDIR/$ID.bam
     zless $MAPDIR/$ID"Log.final.out" >> $MAPDIR/$ID.mapStat
     zless $MAPDIR/$ID"Log.progress.out" >> $MAPDIR/$ID.mapStat
@@ -176,6 +176,12 @@ if [ ! -z "$SPLICE" ]; then
     zless $MAPDIR/$ID"SJ.out.tab" > $MAPDIR/$ID.SJ
     samtools index $MAPDIR/$ID.bam
     rm $MAPDIR/$ID"Log.final.out" $MAPDIR/$ID"Log.progress.out" $MAPDIR/$ID"Log.out" $MAPDIR/$ID"SJ.out.tab"
+
+    if [ ! -z "$UNIQUE" ]; then
+        mv $MAPDIR/$ID"Signal.Unique.out.bg" $MAPDIR/$ID.bw
+    else
+        mv $MAPDIR/$ID"Signal.UniqueMultiple.out.bg" $MAPDIR/$ID.bw
+    fi
 
     ## Tophat2
     #echo "Command used: tophat2 -p $PROCESSORS --b2-sensitive --transcriptome-index=$FASTAFILE --library-type=fr-unstranded -o $MAPDIR/$ID $GENOMEINDEX $FASTQ" >>$MAPDIR/$ID.mapStat

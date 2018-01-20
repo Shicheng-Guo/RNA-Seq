@@ -114,7 +114,7 @@ elif [ "$GENOME" == "hg19" ]; then
         ## tophat (bowtie1 - *ebwt)
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie/genome_and_Abundant"
     elif [ ! -z "$STAR" ]; then
-        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/GRCh37/STAR/"
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/STAR/"
     else
         ## bowtie2 (*bt2)
         #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2/genome_and_Abundant"

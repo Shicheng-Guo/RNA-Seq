@@ -38,7 +38,7 @@ mat <- as.matrix(data)
 set.seed(1)
 kc_script <- kmeans(as.dist(1-cor(t(mat))), as.numeric(opt$clusterCount))
 #kc_script <- kmeans(mat, as.numeric(opt$clusterCount))
-#kc_script <- kmeans(dist(mat, method="DTW"), as.numeric(opt$clusterCount))
+#kc_script <- kmeans(proxy::dist(mat, method="DTW"), as.numeric(opt$clusterCount))
 
 mydata <- mat
 wss <- (nrow(mydata)-1)*sum(apply(mydata,2,var))

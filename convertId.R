@@ -43,6 +43,8 @@ if(is.null(opt$tab)) {
     }
 }
 
+data[,1] <- gsub("\\..*", "", data[,1])
+
 #listMarts(host="www.ensembl.org")
 #mart <- useMart("ensembl") -- obsolete
 mart <- useMart(biomart = "ENSEMBL_MART_ENSEMBL", host = "grch37.ensembl.org")

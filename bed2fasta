@@ -1,0 +1,84 @@
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+
+GENOME="mm9"
+BASED=0
+
+#### usage ####
+usage() {
+    echo
+	echo Program: "bed2fasta (retrieve nucleotide sequences corresponding to genomic coordinate(s))"
+	echo Author: BRIC, University of Copenhagen, Denmark
+	echo Version: 1.0
+	echo Contact: pundhir@binf.ku.dk
+	echo "Usage: bed2fasta -i <file> -j <file> [OPTIONS]"
+	echo "Options:"
+    echo " -i <file>   [reference genome sequence as fasta file]"
+    echo " -j <coor>   [input genomic coordinate file in BED format]"
+    echo "[OPTIONS]"
+    echo " -k <int>    [the coordinate is 0-based or 1-based (default: 0)]"
+    echo "             [0: BED and BAM]"
+    echo "             [1: GFF, GTF, SAM and VCF]"
+    echo "             [for details refer to https://www.biostars.org/p/84686/]"
+    echo " -s          [use strand information]"
+	echo " -h          [help]"
+	echo
+	exit 0
+}
+
+#### parse options ####
+while getopts i:j:k:sh ARG; do
+	case "$ARG" in
+        i) FASTAFILE=$OPTARG;;
+        j) COORFILE=$OPTARG;;
+        k) BASED=$OPTARG;;
+        s) STRAND=1;;
+		h) HELP=1;;
+	esac
+done
+
+## usage, if necessary file and directories are given/exist
+if [ ! -f "$FASTAFILE" -o -z "$COORFILE" -o "$HELP" ]; then
+	usage
+fi
+
+###################
+#helperfunction
+function wait_for_jobs_to_finish {
+    for job in `jobs -p`
+    do
+        echo $job
+        wait $job
+    done
+    echo $1
+}
+###############
+
+## create temporary BED file if input is from stdin
+if [ "$COORFILE" == "stdin" ]; then
+    TMP=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    while read LINE; do
+        echo -e "${LINE}"
+    done > $TMP
+    COORFILE=$TMP
+fi
+
+## retrieve nucleotide sequence
+if [ "$BASED" -eq 0 ]; then
+    if [ ! -z "$STRAND" ]; then
+        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t$F[5]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+    else
+        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
+    fi
+else
+    if [ ! -z "$STRAND" ]; then
+        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); $t[1]=$t[1]-1; print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t$F[5]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+    else
+        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); $t[1]=$t[1]-1; print "$t[0]\t$t[1]\t$t[2]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
+    fi
+fi
+
+## remove temporary file if exists
+if [ ! -z "$TMP" ]; then
+    rm $TMP
+fi

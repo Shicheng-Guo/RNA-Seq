@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library("optparse"))
 ## parse command line arguments
 option_list <- list(
 	make_option(c("-i", "--inFile"), help="input file (can be stdin)"),
-	make_option(c("-r", "--organism"), default="human", help="organsim name (default: %default)"),
+	make_option(c("-r", "--organism"), default="hg19", help="organsim name (hg19, mm9, hg38, mm10) (default: %default)"),
 	make_option(c("-d", "--header"), default=T, help="if file has header (default: %default)"),
 	make_option(c("-t", "--tab"), help="file is tab separated", action="store_true"),
 	make_option(c("-b", "--bed"), help="also include gene coordinates in output", action="store_true")
@@ -45,20 +45,32 @@ if(is.null(opt$tab)) {
 
 data[,1] <- gsub("\\..*", "", data[,1])
 
-#listMarts(host="www.ensembl.org")
-#mart <- useMart("ensembl") -- obsolete
-mart <- useMart(biomart = "ENSEMBL_MART_ENSEMBL", host = "grch37.ensembl.org")
-## use hg38 assembly
-#mart <- useMart(biomart = "ENSEMBL_MART_ENSEMBL", host = "www.ensembl.org")
+################################################
+## BIOMART USAGE
+# listMarts(); ensembl = useMart("ENSEMBL_MART_ENSEMBL"); listDatasets(ensembl); listAttributes(mart)
+# Use the http://www.ensembl.org website and go down the bottom of the page. Click on ’view in Archive’ and select the archive you need. Copy the url and use that url as shown below to connect to the specified BioMart database. The example below shows how to query Ensembl 54.
+# > listMarts(host = "may2009.archive.ensembl.org")
+# > ensembl54 = useMart(host = "may2009.archive.ensembl.org", biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+################################################
 
-#listDatasets(mart)
-if(opt$organism=="human") {
-    mart <- useDataset("hsapiens_gene_ensembl", mart)
+## NOTE: external_gene_name is only available with host=grch37.ensembl.org
+
+if(opt$organism=="hg19") {
+    #mart = useMart(host = "feb2014.archive.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+    mart = useMart(host = "grch37.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+} else if(opt$organism=="mm9") {
+    mart = useMart(host = "may2012.archive.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
+} else if(opt$organism=="hg38") {
+    mart = useMart(host = "dec2017.archive.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
+} else if(opt$organism=="mm10") {
+    #mart = useMart(host = "dec2017.archive.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl")
+    mart = useMart(host = "grch37.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")
 } else {
-    mart <- useDataset("mmusculus_gene_ensembl", mart)
+	cat("Unknown organism provided\n");
+	print_help(parser)
+	q()
 }
 
-#listAttributes(mart)
 if(is.null(opt$bed)) {
     result <- getBM(filters="ensembl_gene_id", attributes=c("ensembl_gene_id", "external_gene_name"), values=data[,1], mart=mart)
     #data$geneName <- as.vector(unlist(apply(data, 1, function(x) result[which(result$ensembl_gene_id==x[1]),2])))

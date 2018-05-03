@@ -7,6 +7,8 @@ GENOME="mm9"
 ALNMODE="--sensitive"
 TRIM5=0
 TRIM3=0
+KALLISTO_FL=200
+KALLISTO_SD=30
 
 #### usage ####
 usage() {
@@ -48,14 +50,18 @@ usage() {
     echo " -L <int>    [length of seed substring; must be >3, <32 (default: 22)]"
     echo " -I <string> [interval between seed substrings w/r/t read len (default: S,1,1.15)]"
     echo " -D <int>    [give up extending after <int> failed extends in a row (default: 15)]"
-    echo " -R <int>    [for reads w/ repetitive seeds, try <int> sets of seeds (default: 2)]"
+    echo " -E <int>    [for reads w/ repetitive seeds, try <int> sets of seeds (default: 2)]"
+    echo "[OPTIONS: Kallisto]"
+    echo " -K          [perform alignment using kallisto]"
+    echo " -T <int>    [average fragment length (default: 200)]"
+    echo " -S <int>    [standard deviation of fragment length (default: 30)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:m:g:p:d:rRsSucek:q:lf:t:L:I:D:R:h ARG; do
+while getopts i:m:g:p:d:rRsSucek:q:lf:t:L:I:D:E:K:T:S:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -77,7 +83,10 @@ while getopts i:m:g:p:d:rRsSucek:q:lf:t:L:I:D:R:h ARG; do
         L) SEED=$OPTARG;;
         I) INTERVAL=$OPTARG;;
         D) GIVEUP=$OPTARG;;
-        R) TRIES=$OPTARG;;
+        E) TRIES=$OPTARG;;
+        K) KALLISTO=1;;
+        T) KALLISTO_FL=$OPTARG;;
+        S) KALLISTO_SD=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -101,6 +110,8 @@ if [ "$GENOME" == "mm9" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie/Bowtie2IndexWithAbundance"
     elif [ ! -z "$STAR" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/STAR/"
+    elif [ ! -z "$KALLISTO" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/kallisto/Mus_musculus.NCBIM37.67.cdna.all.idx"
     else
         ## bowtie2 (*bt2)
         #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/Bowtie2IndexWithAbundance/bowtie2/Bowtie2IndexWithAbundance"
@@ -115,6 +126,8 @@ elif [ "$GENOME" == "hg19" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie/genome_and_Abundant"
     elif [ ! -z "$STAR" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/STAR/"
+    elif [ ! -z "$KALLISTO" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37"
     else
         ## bowtie2 (*bt2)
         #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2/genome_and_Abundant"
@@ -255,6 +268,8 @@ elif [ ! -z "$REPEATS" ]; then
             bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME
         fi
     fi
+elif [ ! -z "$KALLISTO" ]; then
+    kallisto quant -i $GENOMEINDEX -o $MAPDIR -b 100 --single --bias -l $KALLISTO_FL -s $KALLISTO_SD -t $PROCESSORS $FASTQ
 else
     if [ ! -d "$MAPDIR" ]; then
         mkdir $MAPDIR/

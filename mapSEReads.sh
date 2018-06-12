@@ -21,7 +21,7 @@ usage() {
 	echo " -i <file>   [input fastq file(s) with single end reads]"
     echo "             [if multiple separate them by a comma]"
 	echo "[OPTIONS]"
-	echo " -m <dir>    [directory to store mapped reads (default: .)]"
+	echo " -m <dir>    [output directory to store mapped reads (default: .)]"
 	echo " -g <string> [genome (default: mm9)]"
     echo "             [mm9 or hg19]"
     echo " -p <int>    [number of processors (default: 1)]"
@@ -191,7 +191,10 @@ else
 fi
 
 ## map reads
-echo "Map for $ID... " >$MAPDIR/$ID.mapStat
+if [ -z "$KALLISTO" ]; then
+    echo "Map for $ID... " >$MAPDIR/$ID.mapStat
+fi
+
 #echo "$FASTAFILE $GENOMEINDEX $READDIR $ID"; exit;
 
 ## start analysis
@@ -269,6 +272,11 @@ elif [ ! -z "$REPEATS" ]; then
         fi
     fi
 elif [ ! -z "$KALLISTO" ]; then
+    ## customize output directory in case it is not provided
+    if [ "$MAPDIR" -eq "." ]; then
+        MAPDIR=$ID
+        mkdir $MAPDIR
+    fi
     kallisto quant -i $GENOMEINDEX -o $MAPDIR -b 100 --single --bias -l $KALLISTO_FL -s $KALLISTO_SD -t $PROCESSORS $FASTQ
 else
     if [ ! -d "$MAPDIR" ]; then

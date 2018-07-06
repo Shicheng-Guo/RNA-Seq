@@ -20,7 +20,7 @@ usage() {
 	echo "[OPTIONS]"
 	echo " -r <dir>    [directory to store quality filtered reads (default: .)]"
 	echo " -a <file>   [adapter sequences]"
-	echo "             [if argument is a file -> fastq-mcf will be executed]"
+	echo "             [if argument is a fasta file -> fastq-mcf will be executed]"
 	echo "             [if argument is adapter sequence -> FastX will be executed]"
     echo "             [if argument not provided -> only minimum length, quality and trimming of first few nucleotides will be done]"
 	echo " -t          [also output quality filtered reads in FASTA format]"

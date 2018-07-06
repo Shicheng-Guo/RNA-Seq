@@ -23,7 +23,7 @@ usage() {
 	echo "[OPTIONS]"
 	echo " -m <dir>    [output directory to store mapped reads (default: .)]"
 	echo " -g <string> [genome (default: mm9)]"
-    echo "             [mm9 or hg19]"
+    echo "             [mm9, mm10 or hg19]"
     echo " -p <int>    [number of processors (default: 1)]"
     echo " -d <string> [identifier for output BAM file (default: same as fastq file)]"
     echo "[OPTIONS: repeats]"
@@ -120,6 +120,19 @@ if [ "$GENOME" == "mm9" ]; then
         FASTAFILE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/TopHatTranscriptomeIndex_with_chr/genes_without_mt"
         CHRSIZE="/home/pundhir/software/RNAPipe/data/Mus_musculus/Ensembl/NCBIM37/ChromInfoRef.txt"
     fi
+elif [ "$GENOME" == "mm10" ]; then
+    if [ ! -z "$REPENRICH" ]; then
+        ## tophat (bowtie1 - *ebwt)
+        GENOMEINDEX=""
+    elif [ ! -z "$STAR" ]; then
+        GENOMEINDEX=""
+    elif [ ! -z "$KALLISTO" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/mm10/kallisto/Mus_musculus.GRCm38.cdna.all.idx"
+    else
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/mm10/bowtie2/Bowtie2IndexWithAbundance"
+        FASTAFILE=""
+        CHRSIZE="/home/pundhir/project/genome_annotations/mouse.mm10.genome"
+    fi
 elif [ "$GENOME" == "hg19" ]; then
     if [ ! -z "$REPENRICH" ]; then
         ## tophat (bowtie1 - *ebwt)
@@ -135,6 +148,18 @@ elif [ "$GENOME" == "hg19" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2_chr_noscaffold/genome_and_Abundant"
         FASTAFILE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/TopHatTranscriptomeIndex_with_chr/genes_without_mt"
         CHRSIZE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/ChromInfoRef.txt"
+    fi
+elif [ "$GENOME" == "hg38" ]; then
+    if [ ! -z "$REPENRICH" ]; then
+        GENOMEINDEX=""
+    elif [ ! -z "$STAR" ]; then
+        GENOMEINDEX=""
+    elif [ ! -z "$KALLISTO" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/hg38/kallisto/Homo_sapiens.GRCh38.cdna.all.idx"
+    else
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/hg38/bowtie2/Bowtie2IndexWithAbundance"
+        FASTAFILE=""
+        CHRSIZE="/home/pundhir/project/genome_annotations/human.hg38.genome"
     fi
 elif [ "$GENOME" == "hg19_ifn" ]; then
     GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/interferon_genes/interferon"

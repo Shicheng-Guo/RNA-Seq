@@ -38,6 +38,7 @@ if(identical(opt$configFile, "stdin")==T) {
 }
 
 ## NOTE: external_gene_name is only available with host=grch37.ensembl.org
+# listEnsembl(); listMarts(); listDatasets()
 
 if(opt$genome=="hg19") {
     mart = useMart(host = "grch37.ensembl.org",  biomart = "ENSEMBL_MART_ENSEMBL", dataset = "hsapiens_gene_ensembl")

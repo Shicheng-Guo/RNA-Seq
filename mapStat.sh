@@ -3,11 +3,11 @@
 
 #### usage ####
 usage() {
-	echo Program: "mapStat (determine number of reads, mapped and uniquely mapped reads from a SAM file)"
+	echo Program: "mapStat (tabulate mapping statistics)"
 	echo Author: BRIC, University of Copenhagen, Denmark
 	echo Version: 1.0
 	echo Contact: pundhir@binf.ku.dk
-	echo "Usage: mapStat -q <file> -f <file> -s <file>"
+	echo "Usage: mapStat -s <file> -q <file> -f <file>"
 	echo "Options:"
 	echo " -s <file>   [input mapStat file from mapSEReads.sh]"
 	echo "[optional]"

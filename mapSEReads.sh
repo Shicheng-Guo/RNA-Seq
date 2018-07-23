@@ -323,7 +323,8 @@ COMMENT
     ## idxstat format: The output is TAB delimited with each line consisting of reference sequence name, sequence length, # mapped reads and # unmapped reads. 
     #samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt
     samtools index $MAPDIR/$ID.bam
-
+<<"COMMENT"
+COMMENT
     ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
         if [ ! -z "$EXTEND" ]; then

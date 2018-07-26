@@ -40,6 +40,7 @@ usage() {
     echo "[OPTIONS: bowtie2 (default)]"
     echo " -u          [report only uniquely mapped reads]"
     echo " -c          [scale the read coverage to TPM in output bigWig files]"
+    echo " -C          [scale the read coverage to 1x in output bigWig files]"
     echo " -e          [extend 3' end of reads in output bigWig files]"
     echo " -k <int>    [instead of reporting best alignment, report input number of alignments per read]"
     echo " -q <string> [end-to-end: --very-fast, --fast, --sensitive, --very-sensitive (default: --sensitive)]"
@@ -61,7 +62,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:m:g:p:d:rRsSucek:q:lf:t:L:I:D:E:K:T:S:h ARG; do
+while getopts i:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:K:T:S:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -74,6 +75,7 @@ while getopts i:m:g:p:d:rRsSucek:q:lf:t:L:I:D:E:K:T:S:h ARG; do
         S) STAR=1;;
         u) UNIQUE=1;;
         c) SCALE=1;;
+        C) SCALE1x=1;;
         e) EXTEND=1;;
         k) ALNCOUNT=$OPTARG;;
         q) ALNMODE=$OPTARG;;
@@ -285,15 +287,21 @@ elif [ ! -z "$REPEATS" ]; then
     ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
         if [ ! -z "$EXTEND" ]; then
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -c -p $PROCESSORS
         else
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -s
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -c -p $PROCESSORS
+        fi
+    elif [ ! -z "$SCALE1x" ]; then
+        if [ ! -z "$EXTEND" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -C -p $PROCESSORS
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -C -p $PROCESSORS
         fi
     else
         if [ ! -z "$EXTEND" ]; then
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -p $PROCESSORS
         else
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -p $PROCESSORS
         fi
     fi
 elif [ ! -z "$KALLISTO" ]; then
@@ -328,15 +336,21 @@ COMMENT
     ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
         if [ ! -z "$EXTEND" ]; then
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -s
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -c -p $PROCESSORS
         else
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -s
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -c -p $PROCESSORS
+        fi
+    elif [ ! -z "$SCALE1x" ]; then
+        if [ ! -z "$EXTEND" ]; then
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -C -p $PROCESSORS
+        else
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -C -p $PROCESSORS
         fi
     else
         if [ ! -z "$EXTEND" ]; then
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -e -p $PROCESSORS
         else
-            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME
+            bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -p $PROCESSORS
         fi
     fi
 

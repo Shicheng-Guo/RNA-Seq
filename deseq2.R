@@ -8,7 +8,8 @@ option_list <- list(
     make_option(c("-p", "--pvalue"), default="0.05", help="p-value (default: %default)"),
     make_option(c("-n", "--normalized"), help="input file contains normalized read couts", action="store_true"),
     make_option(c("-t", "--treatment"), help="A comma seperated list about description of the data, example: WT,WT,WT,KO,KO,KO (must be equal to the number of samples for which read count is measured in read count file)"),
-	make_option(c("-c", "--condition"), help="A comma seperated list about additonal description of the data, example: T1,T2,T2,T1,T2,T2 (must be equal to the number of samples for which read count is measured in read count file)")
+	make_option(c("-c", "--condition"), help="A comma seperated list about additonal description of the data, example: T1,T2,T2,T1,T2,T2 (must be equal to the number of samples for which read count is measured in read count file)"),
+    make_option(c("-x", "--noheader"), action="store_true", help="input file do not have header)")
 )
 
 parser <- OptionParser(usage = "%prog [options]", option_list=option_list)
@@ -38,9 +39,25 @@ dir.create(file.path(opt$outDir), showWarnings = FALSE)
 #countTable <- read.table("ensembl_transcripts_raw_count", header=TRUE, row.names=1)
 #treatment <-unlist(strsplit("WT,WT,WT,KO,KO,KO", ","))
 if(identical(opt$countFile, "stdin")==T) {
-    countTable <- read.table(file("stdin"), header=F, row.names=1)
+    if(is.null(opt$noheader)) {
+        countTable <- read.table(file("stdin"), header=T, row.names=1)
+    } else {
+        countTable <- read.table(file("stdin"), header=F, row.names=1)
+    }
+    #if(!is.numeric(countTable[,2])) {
+    #    t <- apply(countTable, 2, function(x) as.numeric(as.character(x)))
+    #    row.names(t) <- row.names(countTable)[2:nrow(countTable)]
+    #    countTable <- t
+    #}
 } else {
-    countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=TRUE, row.names=1)
+    if(is.null(opt$noheader)) {
+        countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=T, row.names=1)
+    } else {
+        countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=F, row.names=1)
+    }
+    #if(!is.numeric(countTable[,2])) { 
+    #    countTable <- read.table(pipe(paste("grep -v \"^\\_\"", opt$countFile, sep=" ")), header=T, row.names=1)
+    #}
 }
 
 ## check number of treatments and conditions, if they are correctly provided
@@ -65,9 +82,9 @@ if(!is.null(opt$condition)) {
 if(is.null(opt$normalized)) {
     ## modify this line to compare more than one set of factors (for example, treatment and condition both)
     if(!is.null(opt$condition)) {
-        dds <- DESeqDataSetFromMatrix(countData = countTable, colData = colTable, design = ~ condition + treatment)
+        dds <- DESeqDataSetFromMatrix(countData = round(countTable, digits=0), colData = colTable, design = ~ condition + treatment)
     } else {
-        dds <- DESeqDataSetFromMatrix(countData = countTable, colData = colTable, design = ~ treatment)
+        dds <- DESeqDataSetFromMatrix(countData = round(countTable, digits=0), colData = colTable, design = ~ treatment)
     }
     colData(dds)$treatment <- factor(colData(dds)$treatment, levels=c(levels(colTable$treatment)))
     dds <- DESeq(dds)

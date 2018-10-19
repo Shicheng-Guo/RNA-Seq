@@ -45,17 +45,23 @@ usage() {
     echo " -D <int>    [give up extending after <int> failed extends in a row (default: 15)]"
     echo " -E <int>    [for reads w/ repetitive seeds, try <int> sets of seeds (default: 2)]"
     echo " -X <int>    [maximum fragment length (default: 500)]"
+    echo "[OPTIONS: STAR]"
+    echo " -S          [perform alignment accommodating for splice junctions using STAR]"
+    echo " -u          [report only uniquely mapped reads]"
+    echo " -c          [scale the read coverage to TPM in output bigWig files]"
+    echo " -f <int>    [trim <int> bases from 5'/left end of reads (default: 0)]"
+    echo " -t <int>    [trim <int> bases from 3'/right end of reads (default: 0)]"
     echo "[OPTIONS: Kallisto]"
     echo " -K          [perform alignment using kallisto]"
     echo " -T <int>    [average fragment length (default: 200)]"
-    echo " -S <int>    [standard deviation of fragment length (default: 30)]"
+    echo " -N <int>    [standard deviation of fragment length (default: 30)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:j:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:X:K:T:S:h ARG; do
+while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:X:SKT:N:h ARG; do
 	case "$ARG" in
 		i) FASTQ_FORWARD=$OPTARG;;
 		j) FASTQ_REVERSE=$OPTARG;;
@@ -77,9 +83,10 @@ while getopts i:j:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:X:K:T:S:h ARG; do
         D) GIVEUP=$OPTARG;;
         E) TRIES=$OPTARG;;
         X) FRAGMENT_LEN=$OPTARG;;
+        S) STAR=1;;
         K) KALLISTO=1;;
         T) KALLISTO_FL=$OPTARG;;
-        S) KALLISTO_SD=$OPTARG;;
+        N) KALLISTO_SD=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -172,28 +179,37 @@ fi
 
 ## read arguments
 ARGS=""
-if [ ! -z "$ALNCOUNT" ]; then
-    ARGS="$ARGS -k $ALNCOUNT";
-fi
+if [ ! -z "$STAR" ]; then
+    ARGS=""
+    if [ ! -z "$SCALE" ]; then
+        ARGS="$ARGS --outWigNorm RPM";
+    else
+        ARGS="$ARGS --outWigNorm None";
+    fi
+else
+    if [ ! -z "$ALNCOUNT" ]; then
+        ARGS="$ARGS -k $ALNCOUNT";
+    fi
 
-if [ ! -z "$LOCAL" ]; then
-    ARGS="$ARGS --local";
-fi
+    if [ ! -z "$LOCAL" ]; then
+        ARGS="$ARGS --local";
+    fi
 
-if [ ! -z "$SEED" ]; then
-    ARGS="$ARGS -L $SEED";
-fi
+    if [ ! -z "$SEED" ]; then
+        ARGS="$ARGS -L $SEED";
+    fi
 
-if [ ! -z "$INTERVAL" ]; then
-    ARGS="$ARGS -i $INTERVAL";
-fi
+    if [ ! -z "$INTERVAL" ]; then
+        ARGS="$ARGS -i $INTERVAL";
+    fi
 
-if [ ! -z "$GIVEUP" ]; then
-    ARGS="$ARGS -D $GIVEUP";
-fi
+    if [ ! -z "$GIVEUP" ]; then
+        ARGS="$ARGS -D $GIVEUP";
+    fi
 
-if [ ! -z "$TRIES" ]; then
-    ARGS="$ARGS -R $TRIES";
+    if [ ! -z "$TRIES" ]; then
+        ARGS="$ARGS -R $TRIES";
+    fi
 fi
 
 ## map reads
@@ -204,20 +220,33 @@ fi
 #echo "$FASTAFILE $GENOMEINDEX $READDIR $ID"; exit;
 
 ## start analysis
-if [ ! -z "$KALLISTO" ]; then
+if [ ! -z "STAR" ]; then
+    echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ_FORWARD $FASTQ_REVERSE --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS" >> $MAPDIR/$ID.mapStat
+
+    STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ_FORWARD $FASTQ_REVERSE --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS
+    mv $MAPDIR/$ID"Aligned.sortedByCoord.out.bam" $MAPDIR/$ID.bam
+    zless $MAPDIR/$ID"Log.final.out" >> $MAPDIR/$ID.mapStat
+    zless $MAPDIR/$ID"Log.progress.out" >> $MAPDIR/$ID.mapStat
+    zless $MAPDIR/$ID"Log.out" > $MAPDIR/$ID.log
+    zless $MAPDIR/$ID"SJ.out.tab" > $MAPDIR/$ID.SJ
+    samtools index $MAPDIR/$ID.bam
+    rm $MAPDIR/$ID"Log.final.out" $MAPDIR/$ID"Log.progress.out" $MAPDIR/$ID"Log.out" $MAPDIR/$ID"SJ.out.tab"
+
+    if [ ! -z "$UNIQUE" ]; then
+        mv $MAPDIR/$ID"Signal.Unique.str1.out.bg" $MAPDIR/$ID.bw
+        rm $MAPDIR/$ID"Signal.UniqueMultiple.str1.out.bg"
+    else
+        mv $MAPDIR/$ID"Signal.UniqueMultiple.str1.out.bg" $MAPDIR/$ID.bw
+        rm $MAPDIR/$ID"Signal.Unique.str1.out.bg"
+    fi
+elif [ ! -z "$KALLISTO" ]; then
     ## customize output directory in case it is not provided
     if [ "$MAPDIR" -eq "." ]; then
         MAPDIR=$ID
         mkdir $MAPDIR
     fi
-    kallisto quant -i $GENOMEINDEX -o $MAPDIR -b 100 --single --bias -l $KALLISTO_FL -s $KALLISTO_SD -t $PROCESSORS $FASTQ
+    kallisto quant -i $GENOMEINDEX -o $MAPDIR -b 100 --bias -l $KALLISTO_FL -s $KALLISTO_SD -t $PROCESSORS $FASTQ_FORWARD $FASTQ_REVERSE
 else
-    if [ ! -d "$MAPDIR" ]; then
-        mkdir $MAPDIR/
-    fi
-
-<<"COMMENT"
-COMMENT
     ## command check
     echo "Command used: bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -X $FRAGMENT_LEN $ARGS" >>$MAPDIR/$ID.mapStat
 

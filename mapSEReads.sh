@@ -55,14 +55,14 @@ usage() {
     echo "[OPTIONS: Kallisto]"
     echo " -K          [perform alignment using kallisto]"
     echo " -T <int>    [average fragment length (default: 200)]"
-    echo " -S <int>    [standard deviation of fragment length (default: 30)]"
+    echo " -N <int>    [standard deviation of fragment length (default: 30)]"
 	echo " -h          [help]"
 	echo
 	exit 0
 }
 
 #### parse options ####
-while getopts i:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:K:T:S:h ARG; do
+while getopts i:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:K:T:N:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
@@ -88,7 +88,7 @@ while getopts i:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:K:T:S:h ARG; do
         E) TRIES=$OPTARG;;
         K) KALLISTO=1;;
         T) KALLISTO_FL=$OPTARG;;
-        S) KALLISTO_SD=$OPTARG;;
+        N) KALLISTO_SD=$OPTARG;;
 		h) HELP=1;;
 	esac
 done
@@ -312,12 +312,6 @@ elif [ ! -z "$KALLISTO" ]; then
     fi
     kallisto quant -i $GENOMEINDEX -o $MAPDIR -b 100 --single --bias -l $KALLISTO_FL -s $KALLISTO_SD -t $PROCESSORS $FASTQ
 else
-    if [ ! -d "$MAPDIR" ]; then
-        mkdir $MAPDIR/
-    fi
-
-<<"COMMENT"
-COMMENT
     ## command check
     echo "Command used: zless $FASTQ | bowtie2 -p $PROCESSORS -x $GENOMEINDEX -U - $ALNMODE -5 $TRIM5 -3 $TRIM3 $ARGS" >>$MAPDIR/$ID.mapStat
 

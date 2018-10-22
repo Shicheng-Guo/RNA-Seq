@@ -26,6 +26,8 @@ usage() {
     echo "             [mm9, mm10 or hg19]"
     echo " -p <int>    [number of processors (default: 1)]"
     echo " -d <string> [identifier for output BAM file (default: same as fastq file)]"
+    echo " -a <dir>    [directory to keep adapter trimmed fastq files]"
+    echo "             [adapter sequences are auto-determined using fastqc]"
     echo "[OPTIONS: repeats]"
     echo " -r          [map reads for repeat analysis using bowtie (output multimapped reads)]"
     echo " -R          [map reads for repeat analysis using bowtie2]"
@@ -62,13 +64,14 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:m:g:p:d:rRsSucCek:q:lf:t:L:I:D:E:K:T:N:h ARG; do
+while getopts i:m:g:p:d:a:rRsSucCek:q:lf:t:L:I:D:E:K:T:N:h ARG; do
 	case "$ARG" in
 		i) FASTQ=$OPTARG;;
 		m) MAPDIR=$OPTARG;;
 		g) GENOME=$OPTARG;;
         p) PROCESSORS=$OPTARG;;
         d) ID=$OPTARG;;
+        a) TRIM_FASTQ_DIR=$OPTARG;;
         r) REPENRICH=1;;
         R) REPEATS=1;;
         s) TOPHAT2=1;;
@@ -181,6 +184,14 @@ fi
 FASTQ=$(echo $FASTQ | sed 's/\,/ /g')
 READLENGTH=`zless $FASTQ | head -n 2 | tail -n 1 | perl -ane '$len=length($_)-1; print $len;'`;
 #echo -e "$ID\t$READLENGTH"; exit;
+
+## auto-trim adapter sequences, if required
+if [ ! -z "$TRIM_FASTQ_DIR" ]; then
+    if [ ! -f "$TRIM_FASTQ_DIR/$ID.clipped.fastq.gz" ]; then
+        trimAdapters.sh -i $FASTQ -r $TRIM_FASTQ_DIR -a auto
+    fi
+    FASTQ="$TRIM_FASTQ_DIR/$ID.clipped.fastq.gz"
+fi
 
 ## read arguments
 if [ ! -z "$STAR" ]; then
@@ -326,7 +337,6 @@ else
     #samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt
     samtools index $MAPDIR/$ID.bam
 <<"COMMENT"
-COMMENT
     ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
         if [ ! -z "$EXTEND" ]; then
@@ -347,6 +357,7 @@ COMMENT
             bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -p $PROCESSORS
         fi
     fi
+COMMENT
 
     ## MEDIP-seq
     #segemehl.x -s --minsize 18 -t 8 -d $FASTAFILE -i $GENOMEINDEX -q $READDIR/$ID".fasta" -V -A 95 > $MAPDIR/$ID.sam

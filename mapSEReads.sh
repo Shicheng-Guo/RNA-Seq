@@ -177,6 +177,26 @@ else
 fi
 echo done
 
+## auto-trim adapter sequences, if required
+if [ ! -z "$TRIM_FASTQ_DIR" ]; then
+    ## parse input fastq files in an array
+    oIFS=$IFS
+    IFS=","
+    FASTQFILES=($FASTQ)
+    FASTQFILES_COUNT=${#FASTQFILES[@]}
+    IFS=$oIFS
+
+    FASTQ=""
+    for(( i=0; i<$FASTQFILES_COUNT; i++ )); do
+        TEMPID=`echo ${FASTQFILES[$i]} | perl -an -F'/\,/' -e '$TEMPID=(); foreach(@F) { $_=~s/^.+\///g; $_=~s/\..+$//g; chomp($_); $TEMPID.=$_."_"; } $TEMPID=~s/\_$//g; print "$TEMPID\n";' | perl -an -F'//' -e 'chomp($_); if(scalar(@F)>50) { $_=~s/\_R[0-9]+.*$//g; print "$_\n"; } else { print "$_\n"; }'`;
+        if [ ! -f "$TRIM_FASTQ_DIR/$TEMPID.clipped.fastq.gz" ]; then
+            trimAdapters.sh -i ${FASTQFILES[$i]} -r $TRIM_FASTQ_DIR -a auto
+        fi
+        FASTQ="$FASTQ,$TRIM_FASTQ_DIR/$TEMPID.clipped.fastq.gz"
+    done
+    FASTQ=$(echo $FASTQ | perl -ane '$_=~s/^\,//g; print $_;')
+fi
+
 ## retrieve file name
 if [ -z "$ID" ]; then
     ID=`echo $FASTQ | perl -an -F'/\,/' -e '$ID=(); foreach(@F) { $_=~s/^.+\///g; $_=~s/\..+$//g; chomp($_); $ID.=$_."_"; } $ID=~s/\_$//g; print "$ID\n";' | perl -an -F'//' -e 'chomp($_); if(scalar(@F)>50) { $_=~s/\_R[0-9]+.*$//g; print "$_\n"; } else { print "$_\n"; }'`;
@@ -184,14 +204,6 @@ fi
 FASTQ=$(echo $FASTQ | sed 's/\,/ /g')
 READLENGTH=`zless $FASTQ | head -n 2 | tail -n 1 | perl -ane '$len=length($_)-1; print $len;'`;
 #echo -e "$ID\t$READLENGTH"; exit;
-
-## auto-trim adapter sequences, if required
-if [ ! -z "$TRIM_FASTQ_DIR" ]; then
-    if [ ! -f "$TRIM_FASTQ_DIR/$ID.clipped.fastq.gz" ]; then
-        trimAdapters.sh -i $FASTQ -r $TRIM_FASTQ_DIR -a auto
-    fi
-    FASTQ="$TRIM_FASTQ_DIR/$ID.clipped.fastq.gz"
-fi
 
 ## read arguments
 if [ ! -z "$STAR" ]; then
@@ -337,6 +349,7 @@ else
     #samtools index $MAPDIR/$ID.bam && samtools idxstats $MAPDIR/$ID.bam > $MAPDIR/$ID.MappingStatistics.txt && perl -ane 'print "$F[0]\t$F[2]\t'$ID'\n";' $MAPDIR/$ID.MappingStatistics.txt >> $MAPDIR/concatenated_accepted_MappingStatistics.txt
     samtools index $MAPDIR/$ID.bam
 <<"COMMENT"
+COMMENT
     ## create bigwig files for visualization at the UCSC genome browser
     if [ ! -z "$SCALE" ]; then
         if [ ! -z "$EXTEND" ]; then
@@ -357,7 +370,6 @@ else
             bam2bwForChIP -i $MAPDIR/$ID.bam -o $MAPDIR/ -g $GENOME -p $PROCESSORS
         fi
     fi
-COMMENT
 
     ## MEDIP-seq
     #segemehl.x -s --minsize 18 -t 8 -d $FASTAFILE -i $GENOMEINDEX -q $READDIR/$ID".fasta" -V -A 95 > $MAPDIR/$ID.sam

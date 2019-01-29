@@ -13,8 +13,8 @@ usage() {
 	echo Contact: pundhir@binf.ku.dk
 	echo "Usage: bed2fasta -i <file> -j <file> [OPTIONS]"
 	echo "Options:"
-    echo " -i <file>   [reference genome sequence as fasta file]"
-    echo " -j <coor>   [input genomic coordinate file in BED format]"
+    echo " -i <coor>   [input genomic coordinate file in BED format (can be stdin)]"
+    echo " -j <file>   [reference genome sequence as fasta file]"
     echo "[OPTIONS]"
     echo " -k <int>    [the coordinate is 0-based or 1-based (default: 0)]"
     echo "             [0: BED and BAM]"
@@ -29,8 +29,8 @@ usage() {
 #### parse options ####
 while getopts i:j:k:sh ARG; do
 	case "$ARG" in
-        i) FASTAFILE=$OPTARG;;
-        j) COORFILE=$OPTARG;;
+        i) COORFILE=$OPTARG;;
+        j) FASTAFILE=$OPTARG;;
         k) BASED=$OPTARG;;
         s) STRAND=1;;
 		h) HELP=1;;
@@ -66,15 +66,16 @@ fi
 ## retrieve nucleotide sequence
 if [ "$BASED" -eq 0 ]; then
     if [ ! -z "$STRAND" ]; then
-        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t$F[5]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+        #cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t$F[5]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+        cat $COORFILE | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
     else
-        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); print "$t[0]\t$t[1]\t$t[2]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
+        cat $COORFILE | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
     fi
 else
     if [ ! -z "$STRAND" ]; then
-        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); $t[1]=$t[1]-1; print "$t[0]\t$t[1]\t$t[2]\tCOOR\t1\t$F[5]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
+        cat $COORFILE | perl -ane 'chomp($_); $F[1]=$F[1]-1; print "$F[0]"; foreach(@F[1..scalar(@F)-1) { print "\t$_"; } print "\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout -s
     else
-        cat $COORFILE | perl -ane 'chomp($_); @t=split(/[\:\-]+/,$_); $t[1]=$t[1]-1; print "$t[0]\t$t[1]\t$t[2]\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
+        cat $COORFILE | perl -ane 'chomp($_); $F[1]=$F[1]-1; print "$F[0]"; foreach(@F[1..scalar(@F)-1) { print "\t$_"; } print "\n";' | bedtools getfasta -fi $FASTAFILE -bed stdin -fo stdout
     fi
 fi
 

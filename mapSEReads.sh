@@ -23,7 +23,7 @@ usage() {
 	echo "[OPTIONS]"
 	echo " -m <dir>    [output directory to store mapped reads (default: .)]"
 	echo " -g <string> [genome (default: mm9)]"
-    echo "             [mm9, mm10, hg19, hg38 or dm6]"
+    echo "             [mm9, mm10, hg19, hg38, dm6, ERCC]"
     echo " -p <int>    [number of processors (default: 1)]"
     echo " -d <string> [identifier for output BAM file (default: same as fastq file)]"
     echo " -a <dir>    [directory to keep adapter trimmed fastq files]"
@@ -178,10 +178,7 @@ elif [ "$GENOME" == "hg19_ifn" ]; then
     FASTAFILE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/interferon_genes/interferon"
     CHRSIZE="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/ChromInfoRef.txt"
 elif [ "$GENOME" == "dm6" ]; then
-    if [ ! -z "$REPENRICH" ]; then
-        ## tophat (bowtie1 - *ebwt)
-        GENOMEINDEX=""
-    elif [ ! -z "$STAR" ]; then
+    if [ ! -z "$STAR" ]; then
         GENOMEINDEX=""
     elif [ ! -z "$KALLISTO" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Dro_melanogaster/dm6/kallisto/"
@@ -190,8 +187,18 @@ elif [ "$GENOME" == "dm6" ]; then
         FASTAFILE=""
         CHRSIZE="/home/pundhir/project/genome_annotations/drosophila.dm6.genome"
     fi
+elif [ "$GENOME" == "ERCC" ]; then
+    if [ ! -z "$STAR" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/ERCC/STAR"
+    elif [ ! -z "$KALLISTO" ]; then
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/ERCC/kallisto/"
+    else
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/ERCC/bowtie2/Bowtie2IndexWithAbundance"
+        FASTAFILE=""
+        CHRSIZE=""
+    fi
 else
-    echo "Presently the program only support analysis for mm9, mm10, hg19, hg38 or dm6"
+    echo "Presently the program only support analysis for mm9, mm10, hg19, hg38, dm6 or ERCC"
     echo
     usage
 fi

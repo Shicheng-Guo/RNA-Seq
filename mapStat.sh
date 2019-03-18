@@ -54,6 +54,11 @@ if [ ! -z "$CLIPPED_READS_COUNT" -a -f "$CLIPPEDFASTQFILE" ]; then
     fi
 fi
 
+## fastq file name
+if [ -z "$RAWFASTQFILE" ]; then
+    RAWFASTQFILE=$(zless $MAPSTATFILE | grep "Map for" | sed 's/Map for //g' | sed 's/\..*//g')
+fi
+
 ## tabulate mapping statistics
 echo -e "fastq_file\t#reads (raw)\t#reads (after qualityCheck)\t#reads (for mapping)\t# reads (unpaired)\t#reads (unmapped)\t#reads (aligned 1 time)\t#reads (aligned >1 time)\talignment rate"
 zless $MAPSTATFILE | perl -ane 'BEGIN { print "'$RAWFASTQFILE'\t'$RAW_READS_COUNT'\t'$CLIPPED_READS_COUNT' ('$PER')"; } if($_=~/^[0-9\s]+/) { $_=~s/\;.*//g; chomp($_); $_=~s/\s+[a-zA-Z]+.*//g; print "\t$_"; } END { print "\n"; }'

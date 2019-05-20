@@ -40,6 +40,7 @@ plot_seqlogo <-function(fasta_string){
     freq<-data.frame(freq)
     seqLogo(makePWM(freq),ic.scale=FALSE) #ic.scale determines either frequency or bits
     #seqLogo(makePWM(freq),ic.scale=TRUE) #ic.scale determines either frequency or bits
+    return(makePWM(freq))
 }
 
 if(is.null(opt$output)) {
@@ -49,6 +50,8 @@ if(is.null(opt$output)) {
 }
 
 pdf(outfile, width=40)
-plot_seqlogo(fasta)
+pwm <- plot_seqlogo(fasta)
 dev.off()
+
+#print(pwm)
 

@@ -3,11 +3,13 @@
 suppressPackageStartupMessages(library("optparse"))
 suppressPackageStartupMessages(library("seqLogo"))
 suppressPackageStartupMessages(library("Biostrings"))
+suppressPackageStartupMessages(library("session"))
 
 ## parse command line arguments
 option_list <- list(
     make_option(c("-i", "--input"), help="input sequences is FASTA format (can be stdin)"),
-    make_option(c("-o", "--output"), help="output seqlogo pdf file (optional)")
+    make_option(c("-o", "--output"), help="output seqlogo pdf file (optional)"),
+    make_option(c("-m", "--outputPWM"), action="store_true", help="output PWM to STDOUT (optional)")
 )
 
 parser <- OptionParser(usage = "%prog [options]", option_list=option_list)
@@ -36,11 +38,11 @@ fasta <- fasta[!grepl("N", fasta)]
 plot_seqlogo <-function(fasta_string){
     require(seqLogo)
     require(Biostrings)
-    freq<-consensusMatrix(fasta_string,as.prob=T)[1:4,]
-    freq<-data.frame(freq)
-    seqLogo(makePWM(freq),ic.scale=FALSE) #ic.scale determines either frequency or bits
-    #seqLogo(makePWM(freq),ic.scale=TRUE) #ic.scale determines either frequency or bits
-    return(makePWM(freq))
+    pwm<-consensusMatrix(fasta_string,as.prob=T)[1:4,]
+    pwm<-data.frame(pwm)
+    seqLogo(makePWM(pwm),ic.scale=FALSE) #ic.scale determines either frequency or bits
+    #seqLogo(makePWM(pwm),ic.scale=TRUE) #ic.scale determines either frequency or bits
+    return(pwm)
 }
 
 if(is.null(opt$output)) {
@@ -53,5 +55,9 @@ pdf(outfile, width=40)
 pwm <- plot_seqlogo(fasta)
 dev.off()
 
-#print(pwm)
+if(!is.null(opt$outputPWM)) {
+    #outfilePWM <- gsub("\\.pdf", ".pwm", outfile)
+    write.table(t(pwm), "", sep="\t", quote = F, row.names = F, col.names = T)
+}
 
+#save.session("test.session")

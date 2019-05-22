@@ -9,7 +9,8 @@ TRIM5=0
 TRIM3=0
 KALLISTO_FL=200
 KALLISTO_SD=30
-FRAGMENT_LEN=500
+MIN_FRAGMENT_LEN=0
+MAX_FRAGMENT_LEN=500
 
 #### usage ####
 usage() {
@@ -44,7 +45,11 @@ usage() {
     echo " -I <string> [interval between seed substrings w/r/t read len (default: S,1,1.15)]"
     echo " -D <int>    [give up extending after <int> failed extends in a row (default: 15)]"
     echo " -E <int>    [for reads w/ repetitive seeds, try <int> sets of seeds (default: 2)]"
+    echo " -W <int>    [minumum fragment length (default: 0)]"
     echo " -X <int>    [maximum fragment length (default: 500)]"
+    echo " -Q          [suppress unpaired alignments for paired reads]"
+    echo " -R          [suppress discordant alignments for paired reads]"
+    echo " -Z          [suppress SAM records for unaligned reads]"
     echo "[OPTIONS: STAR]"
     echo " -S          [perform alignment accommodating for splice junctions using STAR]"
     echo " -u          [report only uniquely mapped reads]"
@@ -61,7 +66,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:X:SKT:N:h ARG; do
+while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:W:X:QRZSKT:N:h ARG; do
 	case "$ARG" in
 		i) FASTQ_FORWARD=$OPTARG;;
 		j) FASTQ_REVERSE=$OPTARG;;
@@ -82,7 +87,11 @@ while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:X:SKT:N:h ARG; do
         I) INTERVAL=$OPTARG;;
         D) GIVEUP=$OPTARG;;
         E) TRIES=$OPTARG;;
-        X) FRAGMENT_LEN=$OPTARG;;
+        W) MIN_FRAGMENT_LEN=$OPTARG;;
+        X) MAX_FRAGMENT_LEN=$OPTARG;;
+        Q) NO_MIXED=1;;
+        R) NO_DISCORDANT=1;;
+        Z) NO_UNAL=1;;
         S) STAR=1;;
         K) KALLISTO=1;;
         T) KALLISTO_FL=$OPTARG;;
@@ -210,6 +219,18 @@ else
     if [ ! -z "$TRIES" ]; then
         ARGS="$ARGS -R $TRIES";
     fi
+
+    if [ ! -z "$NO_MIXED" ]; then
+        ARGS="$ARGS --no-mixed";
+    fi
+
+    if [ ! -z "$NO_DISCORDANT" ]; then
+        ARGS="$ARGS --no-discordant";
+    fi
+
+    if [ ! -z "$NO_UNAL" ]; then
+        ARGS="$ARGS --no-unal";
+    fi
 fi
 
 ## map reads
@@ -220,7 +241,7 @@ fi
 #echo "$FASTAFILE $GENOMEINDEX $READDIR $ID"; exit;
 
 ## start analysis
-if [ ! -z "STAR" ]; then
+if [ ! -z "$STAR" ]; then
     echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ_FORWARD $FASTQ_REVERSE --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS" >> $MAPDIR/$ID.mapStat
 
     STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ_FORWARD $FASTQ_REVERSE --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS
@@ -248,12 +269,12 @@ elif [ ! -z "$KALLISTO" ]; then
     kallisto quant -i $GENOMEINDEX -o $MAPDIR -b 100 --bias -l $KALLISTO_FL -s $KALLISTO_SD -t $PROCESSORS $FASTQ_FORWARD $FASTQ_REVERSE
 else
     ## command check
-    echo "Command used: bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -X $FRAGMENT_LEN $ARGS" >>$MAPDIR/$ID.mapStat
+    echo "Command used: bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -I $MIN_FRAGMENT_LEN -X $MAX_FRAGMENT_LEN $ARGS" >>$MAPDIR/$ID.mapStat
 
     if [ ! -z "$UNIQUE" ]; then
-        bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -X $FRAGMENT_LEN $ARGS 2>>$MAPDIR/$ID.mapStat | grep -v XS: | samtools view -S -b - | samtools sort -m 1500M - -o $MAPDIR/$ID.bam
+        bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -I $MIN_FRAGMENT_LEN -X $MAX_FRAGMENT_LEN $ARGS 2>>$MAPDIR/$ID.mapStat | grep -v XS: | samtools view -S -b - | samtools sort -m 1500M - -o $MAPDIR/$ID.bam
     else
-        bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -X $FRAGMENT_LEN $ARGS 2>>$MAPDIR/$ID.mapStat | samtools view -S -b - | samtools sort -m 1500M - -o $MAPDIR/$ID.bam
+        bowtie2 -1 $FASTQ_FORWARD -2 $FASTQ_REVERSE -p $PROCESSORS -x $GENOMEINDEX $ALNMODE -5 $TRIM5 -3 $TRIM3 -I $MIN_FRAGMENT_LEN -X $MAX_FRAGMENT_LEN $ARGS 2>>$MAPDIR/$ID.mapStat | samtools view -S -b - | samtools sort -m 1500M - -o $MAPDIR/$ID.bam
     fi
 
     ## compute mapping statistics

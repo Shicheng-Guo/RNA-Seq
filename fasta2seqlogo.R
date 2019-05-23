@@ -53,11 +53,18 @@ if(is.null(opt$output)) {
 
 pdf(outfile, width=40)
 pwm <- plot_seqlogo(fasta)
-dev.off()
+not_required <- dev.off()
 
 if(!is.null(opt$outputPWM)) {
     #outfilePWM <- gsub("\\.pdf", ".pwm", outfile)
-    write.table(t(pwm), "", sep="\t", quote = F, row.names = F, col.names = T)
+    cat("MEME version 4\n");
+    cat("\nALPHABET= ACGT\n");
+    cat("\nstrands: + -\n");
+    cat("\nBackground letter frequencies\n");
+    cat("A 0.25 C 0.25 G 0.25 T 0.25\n");
+    cat("\nMOTIF DENOVO_BASED_ON_MSA\n")
+    cat(sprintf("letter-probability matrix: alength= %d w= %d nsites= 41\n", ncol(pwm), nrow(pwm)))
+    write.table(t(pwm), "", sep="\t", quote = F, row.names = F, col.names = F)
 }
 
 #save.session("test.session")

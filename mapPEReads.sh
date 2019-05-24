@@ -49,6 +49,7 @@ usage() {
     echo " -X <int>    [maximum fragment length (default: 500)]"
     echo " -Q          [suppress unpaired alignments for paired reads]"
     echo " -R          [suppress discordant alignments for paired reads]"
+    echo " -Y          [concordant when mates extend past each other]"
     echo " -Z          [suppress SAM records for unaligned reads]"
     echo "[OPTIONS: STAR]"
     echo " -S          [perform alignment accommodating for splice junctions using STAR]"
@@ -66,7 +67,7 @@ usage() {
 }
 
 #### parse options ####
-while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:W:X:QRZSKT:N:h ARG; do
+while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:W:X:QRYZSKT:N:h ARG; do
 	case "$ARG" in
 		i) FASTQ_FORWARD=$OPTARG;;
 		j) FASTQ_REVERSE=$OPTARG;;
@@ -91,6 +92,7 @@ while getopts i:j:m:g:p:d:ucCek:q:lf:t:L:I:D:E:W:X:QRZSKT:N:h ARG; do
         X) MAX_FRAGMENT_LEN=$OPTARG;;
         Q) NO_MIXED=1;;
         R) NO_DISCORDANT=1;;
+        Y) DOVETAIL=1;;
         Z) NO_UNAL=1;;
         S) STAR=1;;
         K) KALLISTO=1;;
@@ -230,6 +232,10 @@ else
 
     if [ ! -z "$NO_UNAL" ]; then
         ARGS="$ARGS --no-unal";
+    fi
+
+    if [ ! -z "$DOVETAIL" ]; then
+        ARGS="$ARGS --dovetail";
     fi
 fi
 

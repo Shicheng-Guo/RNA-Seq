@@ -63,7 +63,7 @@ if(!is.null(opt$outputPWM)) {
     cat("\nBackground letter frequencies\n");
     cat("A 0.25 C 0.25 G 0.25 T 0.25\n");
     cat("\nMOTIF DENOVO_BASED_ON_MSA\n")
-    cat(sprintf("letter-probability matrix: alength= %d w= %d nsites= 41\n", ncol(pwm), nrow(pwm)))
+    cat(sprintf("letter-probability matrix: alength= %d w= %d nsites= 41\n", nrow(pwm), ncol(pwm)))
     write.table(t(pwm), "", sep="\t", quote = F, row.names = F, col.names = F)
 }
 

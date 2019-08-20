@@ -137,7 +137,7 @@ elif [ "$GENOME" == "mm10" ]; then
         ## tophat (bowtie1 - *ebwt)
         GENOMEINDEX=""
     elif [ ! -z "$STAR" ]; then
-        GENOMEINDEX=""
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/mm10/STAR/"
     elif [ ! -z "$KALLISTO" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Mus_musculus/mm10/kallisto/Mus_musculus.GRCm38.cdna.all.idx"
     else
@@ -152,7 +152,7 @@ elif [ "$GENOME" == "hg19" ]; then
     elif [ ! -z "$STAR" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/STAR/"
     elif [ ! -z "$KALLISTO" ]; then
-        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37"
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/kallisto/"
     else
         ## bowtie2 (*bt2)
         #GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/Ensembl/GRCh37/Bowtie2IndexInklAbundant/bowtie2/genome_and_Abundant"
@@ -165,7 +165,7 @@ elif [ "$GENOME" == "hg38" ]; then
     if [ ! -z "$REPENRICH" ]; then
         GENOMEINDEX=""
     elif [ ! -z "$STAR" ]; then
-        GENOMEINDEX=""
+        GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/hg38/STAR/"
     elif [ ! -z "$KALLISTO" ]; then
         GENOMEINDEX="/home/pundhir/software/RNAPipe/data/Homo_sapiens/hg38/kallisto/Homo_sapiens.GRCh38.cdna.all.idx"
     else

@@ -300,9 +300,9 @@ if [ ! -z "$STAR" ]; then
 
         FASTQ=$(echo $FASTQ | sed 's/ /\,/g')
 
-        echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS" >> $MAPDIR/$ID.mapStat
+        echo "Command used: STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn <(gunzip -c $FASTQ) --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS" >> $MAPDIR/$ID.mapStat
 
-        STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn $FASTQ --readFilesCommand zless --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS
+        STAR --genomeDir $GENOMEINDEX  --runThreadN $PROCESSORS --readFilesIn <(gunzip -c $FASTQ) --outFileNamePrefix $MAPDIR/$ID --outSAMtype BAM SortedByCoordinate --clip3pNbases $TRIM3 --clip5pNbases $TRIM5 --outWigType bedGraph --outWigStrand Unstranded $ARGS
         mv $MAPDIR/$ID"Aligned.sortedByCoord.out.bam" $MAPDIR/$ID.bam
         zless $MAPDIR/$ID"Log.final.out" >> $MAPDIR/$ID.mapStat
         zless $MAPDIR/$ID"Log.progress.out" >> $MAPDIR/$ID.mapStat
@@ -316,7 +316,7 @@ if [ ! -z "$STAR" ]; then
             rm $MAPDIR/$ID"Signal.UniqueMultiple.str1.out.bg" 
         else
             mv $MAPDIR/$ID"Signal.UniqueMultiple.str1.out.bg" $MAPDIR/$ID.bw
-        rm $MAPDIR/$ID"Signal.Unique.str1.out.bg"
+            rm $MAPDIR/$ID"Signal.Unique.str1.out.bg"
         fi
     fi
 elif [ ! -z "$TOPHAT2" ]; then
